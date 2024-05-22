@@ -1,6 +1,10 @@
 [project]
 name = "slapquant"
 version = "0.0.1"
+dependencies = [
+    "geffa @ git+https://github.com/ulido/geffa",
+]
+requires-python = ">= 3.10"
 
 [tool.setuptools.packages.find]
 where = ["src"]
