@@ -1,0 +1,12 @@
+[project]
+name = "slapquant"
+version = "0.0.1"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.*"]
+
+[project.scripts]
+slapquant = "slapquant.cli:main"
