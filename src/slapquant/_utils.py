@@ -1,8 +1,12 @@
+from __future__ import annotations
 from queue import Queue
-from typing import Generator, Any, Callable
+from typing import Generator, Any, Callable, TypeVar
 from threading import Thread
 
-def queue_iterator[T](queue: Queue[T]) -> Generator[T, Any, None]:
+T = TypeVar('T')
+O = TypeVar('O')
+
+def queue_iterator(queue: Queue[T]) -> Generator[T, Any, None]:
     counter = 0
     while True:
         counter += 1
@@ -11,7 +15,7 @@ def queue_iterator[T](queue: Queue[T]) -> Generator[T, Any, None]:
             break
         yield value
 
-class QueueTee[T]:
+class QueueTee:
     def __init__(self, queue: Queue[T], copies=2, maxsize=None):
         self.input = queue
         self.outputs: list[Queue[T]] = [Queue[T](maxsize=queue.maxsize if maxsize is None else maxsize) for _ in range(copies)]
@@ -32,7 +36,7 @@ class QueueTee[T]:
         for output in self.outputs:
             output.put(None)
 
-class QueueConsumer[T,O](Thread):
+class QueueConsumer(Thread):
     def __init__(self, target: Callable[[T],O], input: Queue[T], output: Queue[O] | None = None, progress=None):
         Thread.__init__(self)
         self.input = input
