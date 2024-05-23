@@ -3,12 +3,13 @@ name = "slapquant"
 version = "0.0.1"
 description = "Find splice leader acceptor sites and polyadenylation sites from RNASeq reads"
 dependencies = [
-    "geffa @ git+https://github.com/ulido/geffa",
+    "geffa @ git+https://github.com/ulido/geffa.git@0.1.0",
 ]
 requires-python = ">= 3.10"
 
 [project.scripts]
-slapquant = "slapquant.cli:main"
+slapquant = "slapquant.cli:slapquant_main"
+slapassign = "slapquant.cli:slapassign_main"
 
 [build-system]
 requires = ["flit_core>=3.4"]
