@@ -122,19 +122,14 @@ def find_sl_sequence(softclipped: Queue[CandidateAlignment]):
         if processed[0] < to_process:
             processed[0] += 1
             sequence = Seq(alignment.sequence)
-            if 'TTTTTT' in sequence or 'AAAAAA' in sequence:  # Remove polyA motifs
+            if alignment.match_location == 'end':
+                sequence = sequence.reverse_complement()
+            # We don't want sequences shorter than 8 bases
+            if len(sequence) < 8 or 'TTTTTT' in sequence or 'AAAAAA' in sequence:  # Remove polyA motifs
                 return
-            # This if structure simply checks if the sequence or its reverse complement was stored already.
-            # TODO: Make this more intelligent without the reverse complement step.
+            # Count sequence
             # TODO: Could use a Bloom filter to make it more performant.
-            if sequence not in counts:
-                revcomp = sequence.reverse_complement()
-                if revcomp in counts:
-                    counts[revcomp] += 1
-                else:
-                    counts[sequence] += 1
-            else:
-                counts[sequence] += 1
+            counts[sequence] += 1
         else:
             # Now we're ignoring everything that comes down the queue. We need to do this to avoid deadlock.
             # Set the event to say we're finished
@@ -147,7 +142,9 @@ def find_sl_sequence(softclipped: Queue[CandidateAlignment]):
 
     # Return the most abundant sequence we've found (that's also longer than 8 bases)
     # Also return the thread, needs to be joined later because we still need to empty the queue.
-    return max([(k, v) for k, v in counts.items() if len(k) >= 8], key=lambda e: e[1])[0], consumer
+    sl_sequence = counts.most_common(1)[0][0]
+    logger.info(f'Found spliced leader sequence {sl_sequence}.')
+    return sl_sequence, consumer
 
 class FilterPattern:
     def __init__(self, pattern: str | re.Pattern[str], strand: Literal['+'] | Literal['-'], match_location: Literal['start'] | Literal['end']):
