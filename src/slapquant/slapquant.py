@@ -17,7 +17,7 @@ from geffa.geffa import Seq, SLASNode, PASNode
 from geffa import GffFile
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('slapquant')
 
 BWA_PATH = os.environ.get('BWA_PATH', 'bwa-mem2')
 
@@ -49,7 +49,7 @@ class BWAMEM:
         subprocess.run([BWA_PATH, "index", self.reference_fasta], check=True, capture_output=True)
         logger.debug('Indexing finished.')
 
-    def align(self, readfiles: list[pathlib.Path | str], queue: Queue[CandidateAlignment], threads=None):
+    def align(self, readfiles: list[pathlib.Path | str], queue: Queue[CandidateAlignment], threads=None, this_logger: logging.Logger=logger):
         if threads is None:
             threads = multiprocessing.cpu_count()-2
 
@@ -60,15 +60,15 @@ class BWAMEM:
         # processing. This is done in a separate thread to allow for parallel processing.
         def line_generator():
             for fname in readfiles:
-                logger.info(f'Aligning reads from "{fname}".')
+                this_logger.info(f'Starting to align reads.')
                 cmd =  [BWA_PATH, "mem", "-t", str(threads), "-Y", self.reference_fasta, fname]
-                logger.debug(f'Starting BWA-MEM: "{" ".join([str(v) for v in cmd])}')
+                this_logger.debug(f'Starting BWA-MEM: "{" ".join([str(v) for v in cmd])}')
                 bwa = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True, stderr=subprocess.PIPE)
                 awk_cmd = ['gawk', "-f", pathlib.Path(__file__).parent / "__assets__/filtering.awk"]
-                logger.debug(f'Starting gawk: "{" ".join([str(v) for v in awk_cmd])}')
+                this_logger.debug(f'Starting gawk: "{" ".join([str(v) for v in awk_cmd])}')
                 awk = subprocess.Popen(awk_cmd, text=True, stdin=bwa.stdout, stdout=subprocess.PIPE)
 
-                logger.debug('Processing and queuing incoming aligned reads.')
+                this_logger.debug('Processing and queuing incoming aligned reads.')
                 for line in iter(awk.stdout.readline, ''):
                     sequence_name, position, strand, match_location, sequence = line.split()
                     queue.put(CandidateAlignment(
@@ -86,7 +86,7 @@ class BWAMEM:
                 if bwa_return_code:
                     raise subprocess.CalledProcessError(bwa_return_code, cmd)
 
-            logger.info('Aligning done.')
+            this_logger.info('Aligning done.')
             queue.put(None)
 
         # Start the thread, make it a daemon (so that it is killed if the main thread is terminated)
@@ -97,11 +97,11 @@ class BWAMEM:
         # Return the thread so it can be joined when it is done.
         return bwa_thread
 
-def do_alignment(bwa: BWAMEM, readfiles: list[pathlib.Path | str], bwa_threads: int | None=None) -> tuple[Queue[CandidateAlignment], threading.Thread]:
+def do_alignment(bwa: BWAMEM, readfiles: list[pathlib.Path | str], bwa_threads: int | None=None, this_logger: logging.Logger=logger) -> tuple[Queue[CandidateAlignment], threading.Thread]:
     # This queue will hold the pre-filtered softclipped sequences from BWA-MEM's alignment.
     queue = Queue[CandidateAlignment](maxsize=100000)
     # Start aligning
-    bwa_thread = bwa.align(readfiles, queue, threads=bwa_threads)
+    bwa_thread = bwa.align(readfiles, queue, threads=bwa_threads, this_logger=this_logger)
     # Return the queue and the thread (for future joining when it is done)
     return queue, bwa_thread
 
@@ -143,7 +143,6 @@ def find_sl_sequence(softclipped: Queue[CandidateAlignment]):
     # Return the most abundant sequence we've found (that's also longer than 8 bases)
     # Also return the thread, needs to be joined later because we still need to empty the queue.
     sl_sequence = counts.most_common(1)[0][0]
-    logger.info(f'Found spliced leader sequence {sl_sequence}.')
     return sl_sequence, consumer
 
 class FilterPattern:
@@ -235,85 +234,61 @@ def _process_read_file(reads: pathlib.Path):
     # Start thread that calls BWA-MEM and the filtering pipe.
     # Successfully aligned and filtered reads will appear in the `alignments` queue.
     # We need to take care to join the `alignment_thread` when done.
-    logger.debug(f'Starting aligner for file {reads} with {n_threads} threads.')
-    alignments, alignment_thread = do_alignment(bwa, [reads], bwa_threads=n_threads)
+    this_logger = logger.getChild(reads.stem.replace('.fastq', ''))
+    this_logger.debug(f'Starting aligner with {n_threads} threads.')
+    alignments, alignment_thread = do_alignment(bwa, [reads], bwa_threads=n_threads, this_logger=this_logger)
 
     threads: list[threading.Thread] = [alignment_thread]
 
+    # Take the alignments queue and copy anything that gets dropped into it into two or three separate queues,
+    # depending on if we need to find the spliced leader sequence.
+    # If we need to find it, one of the queues will take the first N alignments and looks for the appropriate spliced leader sequence.
+    # The queue feeding the spliced reads identification step is paused until the spliced leader sequence is identified,
+    # so the queue maxsize needs to be at least N, otherwise we run into a deadlock situation. Therefore,
+    # `find_sl_sequence` uses the maxsize of the queue it is given as N.
+    alignments_tee = QueueTee(alignments, copies=3 if sl_sequence is None else 2, maxsize=100000)
+
+    # Start the identification of reads containing the polyadenylation motif
+    # The returned `polyA_alignments` will contain a Counter (a special dict that contains the usage of each site)
+    # once the `polyA_alignments_thread` is joined.
+    polyA_sites, polyA_sites_thread = filter_alignments_by_clipped_sequence(
+        alignments_tee.outputs[0],
+        [
+            # We look for at least 6 As softclipped at the end of a read if we're on the forward strand...
+            FilterPattern('^A{6,}', '+', 'end'),
+            # ...and for at least 6 Ts softclipped at the start of a read if we're on the reverse strand.
+            FilterPattern('T{6,}$', '-', 'start'),
+        ]
+    )
+    threads.append(polyA_sites_thread)
+
     if sl_sequence is None:
-        # Take the alignments queue and copy anything that gets dropped into it into three separate queues.
-        # The first of these will take the first N alignments and looks for the appropriate spliced leader sequence.
-        # The queue feeding the spliced reads identification step is paused until the spliced leader sequence is identified,
-        # so the queue maxsize needs to be at least N, otherwise we run into a deadlock situation. Therefore,
-        # `find_sl_sequence` uses the maxsize of the queue it is given as N.
-        alignments_tee = QueueTee(alignments, copies=3, maxsize=100000)
-
-        # Start the identification of reads containing the polyadenylation motif
-        # The returned `polyA_alignments` will contain a Counter (a special dict that contains the usage of each site)
-        # once the `polyA_alignments_thread` is joined.
-        polyA_sites, polyA_sites_thread = filter_alignments_by_clipped_sequence(
-            alignments_tee.outputs[0],
-            [
-                # We look for at least 6 As softclipped at the end of a read if we're on the forward strand...
-                FilterPattern('^A{6,}', '+', 'end'),
-                # ...and for at least 6 Ts softclipped at the start of a read if we're on the reverse strand.
-                FilterPattern('T{6,}$', '-', 'start'),
-            ]
-        )
-        threads.append(polyA_sites_thread)
-
-        # Find the spliced leader sequence. As above, 
-        spliced_leader_sequence, spliced_leader_thread = find_sl_sequence(alignments_tee.outputs[1])
+        # Find the spliced leader sequence.
+        sl_sequence, spliced_leader_thread = find_sl_sequence(alignments_tee.outputs[2])
         # Only use the 8 ending nucleotides of the spliced leader sequence.
         # This is enough to accurately identify spliced reads, and leads to less reads being unecessarily discarded.
-        spliced_leader_sequence = spliced_leader_sequence[-8:]
+        sl_sequence = sl_sequence[-8:]
+        this_logger.info(f'Found spliced leader sequence {sl_sequence}.')
         threads.append(spliced_leader_thread)
-
-        # Now identify softclipped reads that contain the spliced leader sequence.
-        spliced_leader_sites, spliced_leader_sites_thread = filter_alignments_by_clipped_sequence(
-            alignments_tee.outputs[2],
-            [
-                # We look for reads that have a softclipped segment at the start containing the spliced leader sequence if we're on the forward strand...
-                FilterPattern(f'{spliced_leader_sequence}$', '+', 'start'),
-                # ... and for reads that have a softclipped segment at the end containing the reverse complement of the spliced leader sequence if we're on the reverse strand.
-                FilterPattern(f'^{spliced_leader_sequence.reverse_complement()}', '-', 'end'),
-            ]
-        )
-        threads.append(spliced_leader_sites_thread)
     else:
-        logger.info(f"Spliced leader sequence specified ('{sl_sequence}'), skipping automatic detection")
+        this_logger.info(f"Spliced leader sequence specified ('{sl_sequence}'), skipping automatic detection")
 
-        alignments_tee = QueueTee(alignments, copies=2)
-
-        # Start the identification of reads containing the polyadenylation motif
-        # The returned `polyA_alignments` will contain a Counter (a special dict that contains the usage of each site)
-        # once the `polyA_alignments_thread` is joined.
-        polyA_sites, polyA_sites_thread = filter_alignments_by_clipped_sequence(
-            alignments_tee.outputs[0],
-            [
-                # We look for at least 6 As softclipped at the end of a read if we're on the forward strand...
-                FilterPattern('^A{6,}', '+', 'end'),
-                # ...and for at least 6 Ts softclipped at the start of a read if we're on the reverse strand.
-                FilterPattern('T{6,}$', '-', 'start'),
-            ]
-        )
-        threads.append(polyA_sites_thread)
-
-        # Now identify softclipped reads that contain the spliced leader sequence.
-        spliced_leader_sites, spliced_leader_sites_thread = filter_alignments_by_clipped_sequence(
-            alignments_tee.outputs[1],
-            [
-                # We look for reads that have a softclipped segment at the start containing the spliced leader sequence if we're on the forward strand...
-                FilterPattern(f'{sl_sequence}$', '+', 'start'),
-                # ... and for reads that have a softclipped segment at the end containing the reverse complement of the spliced leader sequence if we're on the reverse strand.
-                FilterPattern(f'^{sl_sequence.reverse_complement()}', '-', 'end'),
-            ]
-        )
-        threads.append(spliced_leader_sites_thread)
-
+    # Now identify softclipped reads that contain the spliced leader sequence.
+    spliced_leader_sites, spliced_leader_sites_thread = filter_alignments_by_clipped_sequence(
+        alignments_tee.outputs[1],
+        [
+            # We look for reads that have a softclipped segment at the start containing the spliced leader sequence if we're on the forward strand...
+            FilterPattern(f'{sl_sequence}$', '+', 'start'),
+            # ... and for reads that have a softclipped segment at the end containing the reverse complement of the spliced leader sequence if we're on the reverse strand.
+            FilterPattern(f'^{sl_sequence.reverse_complement()}', '-', 'end'),
+        ]
+    )
+    threads.append(spliced_leader_sites_thread)
 
     # Crucially, we cannot join the spliced_leader_thread before, because it needs to flush items out of the queue until the end.
     for thread in threads[::-1]:
         thread.join()
     
+    this_logger.info(f"Found {len(spliced_leader_sites)} unique spliced leader acceptor sites and {len(polyA_sites)} unique polyadenylation sites.")
+
     return spliced_leader_sites, polyA_sites
