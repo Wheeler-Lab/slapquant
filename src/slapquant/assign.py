@@ -2,8 +2,10 @@ import itertools
 import geffa
 
 import logging
+import __main__
+import pathlib
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(pathlib.Path(__main__.__file__).stem)
 
 def assign_sites(gene_models_gff, slas_pas_sites_gff):
     gene_models = geffa.GffFile(gene_models_gff, ignore_unknown_feature_types=True)
@@ -81,3 +83,45 @@ def assign_sites(gene_models_gff, slas_pas_sites_gff):
                 pas.add_parent(closest_node.parents[0].parents[0])
 
     return gene_models
+
+def identify_UTRs(annotations_gff):
+    gff = geffa.GffFile(annotations_gff, ignore_unknown_feature_types=True)
+
+    for seqreg in gff.sequence_regions.values():
+        for gene in [feature for feature in seqreg.node_registry.values() if feature.type == 'gene']:
+            mRNAs = [feature for feature in gene.children if feature.type == 'mRNA']
+            if len(mRNAs) == 0:
+                logger.warning(f"{gene.attributes['ID']} is not a protein coding gene, skipping UTR assignment.")
+                continue
+            elif len(mRNAs) > 1:
+                logger.warning(f"{gene.attributes['ID']} has multiple mRNAs assigned, UTR assignment isn't implemented yet.")
+                continue
+            mRNA: geffa.geffa.MRNANode = mRNAs[0]
+            CDSs = mRNA.CDS_children()
+
+            slas_sites = [feature for feature in gene.children if feature.type == 'SLAS']
+            pas_sites = [feature for feature in gene.children if feature.type == 'PAS']
+
+            if slas_sites:
+                slas = sorted(slas_sites, key=lambda x: -int(x.attributes['Usage']))[0]
+                CDS = CDSs[0]
+                if mRNA.strand == '+':
+                    start = slas.end
+                    end = CDS.start
+                else:
+                    end = slas.start
+                    start = CDS.end
+                UTR5 = geffa.geffa.FivePrimeUTRNode(-1, seqreg, 'RNASeq', 'five_prime_UTR', start, end, '.', mRNA.strand, '.', f'ID={mRNA.attributes["ID"]}_UTR5;Parent={mRNA.attributes["ID"]}')
+            if pas_sites:
+                pas = sorted(pas_sites, key=lambda x: -int(x.attributes['Usage']))[0]
+                CDS = CDSs[-1]
+                if mRNA.strand == '+':
+                    start = CDS.end
+                    end = pas.start
+                else:
+                    end = CDS.start
+                    start = pas.end
+                UTR3 = geffa.geffa.ThreePrimeUTRNode(-1, seqreg, 'RNASeq', 'three_prime_UTR', start, end, '.', mRNA.strand, '.', f'ID={mRNA.attributes["ID"]}_UTR3;Parent={mRNA.attributes["ID"]}')
+        break
+
+    return gff

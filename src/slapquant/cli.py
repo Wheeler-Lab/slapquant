@@ -1,9 +1,10 @@
 import logging
 import pathlib
 import argparse
+import sys
 
 from slapquant.slapquant import process_reads
-from slapquant.assign import assign_sites
+from slapquant.assign import assign_sites, identify_UTRs
 
 from geffa.geffa import Seq
 
@@ -34,4 +35,15 @@ def slapassign_main():
     logging.basicConfig(filename='/dev/stderr', level=args.loglevel)
     
     gff = assign_sites(args.gene_models_gff, args.slas_pas_gff)
+    gff.save('/dev/stdout')
+
+def slaputrs_main():
+    parser = argparse.ArgumentParser(description="Call untranslated regions (UTRs) of trans-spliced genes based on spliced leader acceptor sites and polyadenylation sites assigned to genes. This takes the GFF file created by slapassign and identifies UTRs. The resulting GFF file contains has the 3' and 5' UTRs added to all genes for which they could be identified.")
+    parser.add_argument('gene_models_slas_pas_gff', nargs='?', type=pathlib.Path, default='/dev/stdin', help="The path to a GFF file containing the gene models and the spliced leader accaptor and polyadenylation sites identified and assigned via a prior slapassign run.")
+    parser.add_argument('-v', '--verbose', help="""Give more info about the process.""", action="store_const", dest="loglevel", const=logging.INFO, default=logging.WARNING)
+
+    args = parser.parse_args()
+    logging.basicConfig(filename='/dev/stderr', level=args.loglevel)
+    
+    gff = identify_UTRs(args.gene_models_slas_pas_gff)
     gff.save('/dev/stdout')
