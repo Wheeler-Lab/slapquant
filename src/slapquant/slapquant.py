@@ -115,7 +115,7 @@ def find_sl_sequence(softclipped: Queue[CandidateAlignment]):
     processed: int = [0]
     # We only want to process the first N sequences, so that the queues don't become deadlocked.
     # Use the queue maxsize as N.
-    to_process = softclipped.maxsize
+    to_process = softclipped.maxsize - 1
     # We'll raise this event once processed[0] == to_process.
     finished = threading.Event()
     def process(alignment: CandidateAlignment):
