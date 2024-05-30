@@ -229,6 +229,7 @@ def _init_worker(_bwa: BWAMEM, _n_threads: int, _sl_sequence: Seq | None):
     sl_sequence = _sl_sequence
 
 def _process_read_file(reads: pathlib.Path):
+    global bwa, n_threads, sl_sequence
     # This is the main worker function for the parallel processing of alignments.
 
     # Start thread that calls BWA-MEM and the filtering pipe.
@@ -264,6 +265,7 @@ def _process_read_file(reads: pathlib.Path):
 
     if sl_sequence is None:
         # Find the spliced leader sequence.
+        this_logger.info(f'Starting spliced leader sequence finding.')
         sl_sequence, spliced_leader_thread = find_sl_sequence(alignments_tee.outputs[2])
         # Only use the 8 ending nucleotides of the spliced leader sequence.
         # This is enough to accurately identify spliced reads, and leads to less reads being unecessarily discarded.
