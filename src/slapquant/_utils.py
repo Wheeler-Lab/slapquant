@@ -1,7 +1,7 @@
 from __future__ import annotations
 from queue import Queue
 from typing import Generator, Any, Callable, TypeVar
-from threading import Thread
+from threading import Thread, Event
 
 T = TypeVar('T')
 O = TypeVar('O')
@@ -15,10 +15,15 @@ def queue_iterator(queue: Queue[T]) -> Generator[T, Any, None]:
             break
         yield value
 
+class FinishingQueue(Queue):
+    def __init__(self, *args, **kwargs):
+        Queue.__init__(self, *args, **kwargs)
+        self.finished = Event()
+
 class QueueTee:
     def __init__(self, queue: Queue[T], copies=2, maxsize=None):
         self.input = queue
-        self.outputs: list[Queue[T]] = [Queue[T](maxsize=queue.maxsize if maxsize is None else maxsize) for _ in range(copies)]
+        self.outputs: list[FinishingQueue[T]] = [FinishingQueue[T](maxsize=queue.maxsize if maxsize is None else maxsize) for _ in range(copies)]
     
         self.distributor_thread = Thread(target=self.distributor)
         self.distributor_thread.daemon = True
@@ -32,8 +37,10 @@ class QueueTee:
             if item is None:
                 break
             for output in self.outputs:
-                output.put(item)
+                if not output.finished.is_set():
+                    output.put(item)
         for output in self.outputs:
+            output.finished.set()
             output.put(None)
 
 class QueueConsumer(Thread):
@@ -55,6 +62,8 @@ class QueueConsumer(Thread):
                 processed = self.target(item)
                 if processed is not None:
                     self.output.put(processed)
+                else:
+                    break
             self.output.put(None)
         else:
             for item in self._progress(queue_iterator(self.input)):

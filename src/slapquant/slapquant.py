@@ -11,7 +11,7 @@ import tempfile
 import subprocess
 import multiprocessing
 
-from ._utils import QueueConsumer, QueueTee
+from ._utils import QueueConsumer, QueueTee, FinishingQueue
 
 from geffa.geffa import Seq, SLASNode, PASNode
 from geffa import GffFile
@@ -105,7 +105,7 @@ def do_alignment(bwa: BWAMEM, readfiles: list[pathlib.Path | str], bwa_threads: 
     # Return the queue and the thread (for future joining when it is done)
     return queue, bwa_thread
 
-def find_sl_sequence(softclipped: Queue[CandidateAlignment]):
+def find_sl_sequence(softclipped: FinishingQueue[CandidateAlignment]):
     # Take the softclipped sequences from the given queue and find the spliced leader sequence.
     # This sequence should be the most abundant softclipped sequence after any poly-A tails.
 
@@ -116,8 +116,6 @@ def find_sl_sequence(softclipped: Queue[CandidateAlignment]):
     # We only want to process the first N sequences, so that the queues don't become deadlocked.
     # Use the queue maxsize as N.
     to_process = softclipped.maxsize - 1
-    # We'll raise this event once processed[0] == to_process.
-    finished = threading.Event()
     def process(alignment: CandidateAlignment):
         if processed[0] < to_process:
             processed[0] += 1
@@ -133,12 +131,12 @@ def find_sl_sequence(softclipped: Queue[CandidateAlignment]):
         else:
             # Now we're ignoring everything that comes down the queue. We need to do this to avoid deadlock.
             # Set the event to say we're finished
-            finished.set()
+            softclipped.finished.set()
     # Process the softclipped sequences
     consumer = QueueConsumer(process, softclipped)
     consumer.start()
     # Wait until the finished event is set.
-    finished.wait()
+    softclipped.finished.wait()
 
     # Return the most abundant sequence we've found (that's also longer than 8 bases)
     # Also return the thread, needs to be joined later because we still need to empty the queue.
