@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 import itertools
 import pathlib
@@ -215,11 +216,31 @@ def process_reads(reference_genome: pathlib.Path, rnaseq_reads: list[pathlib.Pat
         else:
             sites = list(sites_iterator)
 
+    # Now that we've gotten the sites back from the worker processes, we need to check if the same
+    # SL sequence was detected for all read files.
+    results = defaultdict[Seq, list[ReadFileResults]](list)
+    for result in sites:
+        results[result.sl_sequence].append(result)
+    if len(results) > 1:
+        logger.warning('Found multiple different spliced leader sequences:')
+        usages = {sl_sequence: sum([result.spliced_leader_sites.total() for result in entry]) for sl_sequence, entry in results.items()}
+        for sl_sequence, readresults in sorted(results.items(), key=lambda entry: -usages[entry[0]]):
+            logger.warning(f'\t{sl_sequence} found in {", ".join([str(r.read_file) for r in readresults])}, total usage {sum([result.spliced_leader_sites.total() for result in readresults])}')
+        sl_sequence = max(usages, key=lambda s: usages[s])
+        logger.warning(f'Reported results will only include spliced leader acceptor sites identified from the sequence {sl_sequence} with total usage {usages[sl_sequence]}.')
+        logger.warning(f'Consider specifying the spliced leader sequence via the -A command line option.')
+    else:
+        sl_sequence = list(results.keys())[0]
+
+    # Only use spliced leader acceptor sites from the SL sequence with the highest total usage.
     spliced_leader_sites = Counter[Site]()
+    for entry in results[sl_sequence]:
+        spliced_leader_sites.update(entry.spliced_leader_sites)
+
+    # Use polyA sites from all read files (since this isn't dependent on successful detection of spliced leader sites)
     polyA_sites = Counter[Site]()
-    for spliced, polyA in sites:
-        spliced_leader_sites.update(spliced)
-        polyA_sites.update(polyA)
+    for entry in (entry for entries in results.values() for entry in entries):
+        polyA_sites.update(entry.polyA_sites)
 
     # Return a GFF object that holds the found sites
     return create_gff(reference_genome, spliced_leader_sites, polyA_sites)
@@ -230,6 +251,12 @@ def _init_worker(_bwa: BWAMEM, _n_threads: int, _sl_sequence: Seq | None):
     bwa = _bwa
     n_threads = _n_threads
     sl_sequence = _sl_sequence
+
+class ReadFileResults(NamedTuple):
+    read_file: pathlib.Path
+    sl_sequence: Seq
+    spliced_leader_sites: Counter[Site]
+    polyA_sites: Counter[Site]
 
 def _process_read_file(reads: pathlib.Path):
     global bwa, n_threads, sl_sequence
@@ -296,4 +323,4 @@ def _process_read_file(reads: pathlib.Path):
     
     this_logger.info(f"Found {len(spliced_leader_sites)} unique spliced leader acceptor sites and {len(polyA_sites)} unique polyadenylation sites.")
 
-    return spliced_leader_sites, polyA_sites
+    return ReadFileResults(reads, sl_sequence, spliced_leader_sites, polyA_sites)
