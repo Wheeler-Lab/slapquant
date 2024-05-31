@@ -211,7 +211,7 @@ def process_reads(reference_genome: pathlib.Path, rnaseq_reads: list[pathlib.Pat
     n_bwa_threads = n_cpus // n_workers
     with ProcessPoolExecutor(n_workers, initializer=_init_worker, initargs=(bwa, n_bwa_threads, sl_sequence)) as executor:
         sites_iterator = executor.map(_process_read_file, rnaseq_reads, chunksize=1)
-        if logger.isEnabledFor(logging.WARNING):
+        if not logger.isEnabledFor(logging.INFO):
             sites = list(tqdm(sites_iterator, total=len(rnaseq_reads), desc="Read files"))
         else:
             sites = list(sites_iterator)

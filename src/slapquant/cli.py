@@ -1,7 +1,9 @@
 import logging
 import pathlib
 import argparse
-import sys
+import logging
+logging.basicConfig(filename='/dev/stderr', format='%(levelname)s:\t%(message)s')
+logger = logging.getLogger()
 
 from slapquant.slapquant import process_reads
 from slapquant.assign import assign_sites, identify_UTRs
@@ -17,7 +19,7 @@ def slapquant_main():
     parser.add_argument('-d', '--debug', help="""Debugging info (very verbose)""", action="store_const", dest="loglevel", const=logging.DEBUG)
 
     args = parser.parse_args()
-    logging.basicConfig(filename='/dev/stderr', level=args.loglevel)
+    logger.setLevel(args.loglevel)
 
     sl_sequence = args.spliced_leader_sequence
     if sl_sequence is not None:
@@ -32,7 +34,7 @@ def slapassign_main():
     parser.add_argument('-v', '--verbose', help="""Give more info about the process.""", action="store_const", dest="loglevel", const=logging.INFO, default=logging.WARNING)
 
     args = parser.parse_args()
-    logging.basicConfig(filename='/dev/stderr', level=args.loglevel)
+    logger.setLevel(args.loglevel)
     
     gff = assign_sites(args.gene_models_gff, args.slas_pas_gff)
     gff.save('/dev/stdout')
@@ -43,7 +45,7 @@ def slaputrs_main():
     parser.add_argument('-v', '--verbose', help="""Give more info about the process.""", action="store_const", dest="loglevel", const=logging.INFO, default=logging.WARNING)
 
     args = parser.parse_args()
-    logging.basicConfig(filename='/dev/stderr', level=args.loglevel)
+    logger.setLevel(args.loglevel)
     
     gff = identify_UTRs(args.gene_models_slas_pas_gff)
     gff.save('/dev/stdout')
