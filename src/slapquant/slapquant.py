@@ -16,6 +16,8 @@ from ._utils import QueueConsumer, QueueTee, FinishingQueue
 from geffa.geffa import Seq, SLASNode, PASNode
 from geffa import GffFile
 
+from tqdm.auto import tqdm
+
 import logging
 logger = logging.getLogger('slapquant')
 
@@ -207,9 +209,12 @@ def process_reads(reference_genome: pathlib.Path, rnaseq_reads: list[pathlib.Pat
     n_workers = min(n_cpus // 8, len(rnaseq_reads))
     n_bwa_threads = n_cpus // n_workers
     with ProcessPoolExecutor(n_workers, initializer=_init_worker, initargs=(bwa, n_bwa_threads, sl_sequence)) as executor:
-        sites = executor.map(_process_read_file, rnaseq_reads)
-    
-    # Now that we've gotten the sites back from the worker processes, we need to collect them into their respective counter objects.
+        sites_iterator = executor.map(_process_read_file, rnaseq_reads, chunksize=1)
+        if logger.isEnabledFor(logging.WARNING):
+            sites = list(tqdm(sites_iterator, total=len(rnaseq_reads), desc="Read files"))
+        else:
+            sites = list(sites_iterator)
+
     spliced_leader_sites = Counter[Site]()
     polyA_sites = Counter[Site]()
     for spliced, polyA in sites:
