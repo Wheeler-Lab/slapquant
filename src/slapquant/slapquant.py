@@ -228,7 +228,7 @@ def process_reads(reference_genome: pathlib.Path, rnaseq_reads: list[pathlib.Pat
             logger.warning(f'\t{sl_sequence} found in {", ".join([str(r.read_file) for r in readresults])}, total usage {sum([result.spliced_leader_sites.total() for result in readresults])}')
         sl_sequence = max(usages, key=lambda s: usages[s])
         logger.warning(f'Reported results will only include spliced leader acceptor sites identified from the sequence {sl_sequence} with total usage {usages[sl_sequence]}.')
-        logger.warning(f'Consider specifying the spliced leader sequence via the -A command line option.')
+        logger.warning(f'Consider specifying the spliced leader sequence via the -S command line option.')
     else:
         sl_sequence = list(results.keys())[0]
 
