@@ -202,7 +202,7 @@ def create_gff(reference_fasta: pathlib.Path, SLAS_counter: Counter[Site], PAS_c
     return gff
     
 
-def process_reads(reference_genome: pathlib.Path, rnaseq_reads: list[pathlib.Path], sl_sequence: Seq | None = None):
+def process_reads(reference_genome: pathlib.Path, rnaseq_reads: list[pathlib.Path], sl_sequence: Seq | None = None, output_type: str = None):
     # Index the genome
     bwa = BWAMEM(reference_genome)
     n_cpus = multiprocessing.cpu_count()
@@ -231,6 +231,10 @@ def process_reads(reference_genome: pathlib.Path, rnaseq_reads: list[pathlib.Pat
         logger.warning(f'Consider specifying the spliced leader sequence via the -S command line option.')
     else:
         sl_sequence = list(results.keys())[0]
+
+    # return the spliced leader sequence if requested, otherwise continue to GFF generation
+    if output_type == "sl_sequence":
+        return sl_sequence
 
     # Only use spliced leader acceptor sites from the SL sequence with the highest total usage.
     spliced_leader_sites = Counter[Site]()

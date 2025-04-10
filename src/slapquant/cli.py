@@ -27,6 +27,19 @@ def slapquant_main():
     gff = process_reads(args.reference_genome, args.rnaseq_reads, sl_sequence)
     gff.save('/dev/stdout')
 
+def slapidentify_main():
+    parser = argparse.ArgumentParser(description="Identify spliced leader sequence from high-quality RNAseq reads. Note that the reads need to be trimmed beforehand.")
+    parser.add_argument('reference_genome', type=pathlib.Path, help="""The path to a FASTA file containing the reference genome used to align the RNASeq reads to.""")
+    parser.add_argument('rnaseq_reads', nargs='+', type=pathlib.Path, help="""The path(s) to (potentially multiple) FASTQ files containing the RNASeq reads. Note that no special handling for paired-end reads is done.""")
+    parser.add_argument('-v', '--verbose', help="""Give more info about the process.""", action="store_const", dest="loglevel", const=logging.INFO, default=logging.WARNING)
+    parser.add_argument('-d', '--debug', help="""Debugging info (very verbose)""", action="store_const", dest="loglevel", const=logging.DEBUG)
+
+    args = parser.parse_args()
+    logger.setLevel(args.loglevel)
+
+    sl_sequence = process_reads(args.reference_genome, args.rnaseq_reads, None)
+    print(sl.sequence, file=open('/dev/stdout', 'w'))
+
 def slapassign_main():
     parser = argparse.ArgumentParser(description="Assign spliced leader accaptor and polyadenylation sites to gene models. The resulting GFF file contains the sites assigned to the given gene models and is printed to standar output.")
     parser.add_argument('gene_models_gff', type=pathlib.Path, help="The path to a GFF file containing the gene models the sites should be matched to. Please note that this must correspond to the original genome slapquant was run on to identify the sites.")
