@@ -11,19 +11,34 @@ from slapquant.assign import assign_sites, identify_UTRs
 from geffa.geffa import Seq
 
 def slapquant_main():
+    sl_sequences = {
+        "trypanosomabrucei": "AACGCTATTATTAGAACAGTTTCTGTACTATATTG",
+        "leishmaniamexicana": "AACTAACGCTATATAAGTATCAGTTTCTGTACTTTATTG",
+    }
+
     parser = argparse.ArgumentParser(description="Find spliced leader acceptor and polyadenylation sites by aligning high-quality RNASeq reads to an existing genome. Note that the reads net to be trimmed beforehand.")
     parser.add_argument('reference_genome', type=pathlib.Path, help="""The path to a FASTA file containing the reference genome used to align the RNASeq reads to.""")
     parser.add_argument('rnaseq_reads', nargs='+', type=pathlib.Path, help="""The path(s) to (potentially multiple) FASTQ files containing the RNASeq reads. Note that no special handling for paired-end reads is done.""")
-    parser.add_argument('-S', '--spliced-leader-sequence', help="""The spliced leader sequence to look for. If not specified, slapquant will attempt to auto-detect the spliced leader sequence. Your mileage might vary.""", default=None)
+    parser.add_argument('-s', '--species', help="""Use the predetermined spliced leader sequence for this species. If neither this nor the spliced leader sequence is given, slapquant will attempt to auto-detect the spliced leader sequence. This is not recommended.""", default=None)
+    parser.add_argument('-S', '--spliced-leader-sequence', help="""The spliced leader sequence to look for. If neither this nor the species are given, slapquant will attempt to auto-detect the spliced leader sequence. This is not recommended.""", default=None)
     parser.add_argument('-v', '--verbose', help="""Give more info about the process.""", action="store_const", dest="loglevel", const=logging.INFO, default=logging.WARNING)
     parser.add_argument('-d', '--debug', help="""Debugging info (very verbose)""", action="store_const", dest="loglevel", const=logging.DEBUG)
 
     args = parser.parse_args()
     logger.setLevel(args.loglevel)
 
+    sl_species = args.species
     sl_sequence = args.spliced_leader_sequence
+    if sl_species is not None and sl_sequence is not None:
+        raise ValueError("Please provide either a species or a spliced leader sequence, not both.")
+
+    if sl_species is not None:
+        sl_sequence = sl_sequences.get(sl_species)
+        if sl_sequence is None:
+            raise ValueError(f"Unknown species {sl_species} for spliced leader sequence.")
     if sl_sequence is not None:
-        sl_sequence = Seq(sl_sequence)
+        sl_sequence = Seq(sl_sequence)        
+
     gff = process_reads(args.reference_genome, args.rnaseq_reads, sl_sequence)
     gff.save('/dev/stdout')
 
