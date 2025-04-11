@@ -5,8 +5,9 @@ import logging
 logging.basicConfig(filename='/dev/stderr', format='%(levelname)s:\t%(message)s')
 logger = logging.getLogger()
 
-from slapquant.slapquant import process_reads
+from slapquant.slapquant import process_reads as slapquant_process_reads
 from slapquant.assign import assign_sites, identify_UTRs
+from slapquant.slapspan import process_reads as slapspan_process_reads
 
 from geffa.geffa import Seq
 
@@ -43,8 +44,7 @@ def slapquant_main():
             raise ValueError(f"Unknown species {sl_species} for spliced leader sequence.")
     if sl_sequence is not None:
         sl_sequence = Seq(sl_sequence)
-
-    gff = process_reads(args.reference_genome, args.rnaseq_reads, sl_sequence)
+    gff = slapquant_process_reads(args.reference_genome, args.rnaseq_reads, sl_sequence)
     gff.save('/dev/stdout')
 
 def slapassign_main():
@@ -69,3 +69,19 @@ def slaputrs_main():
     
     gff = identify_UTRs(args.gene_models_slas_pas_gff)
     gff.save('/dev/stdout')
+
+def slapspan_main():
+    parser = argparse.ArgumentParser(description="Count number of aligned RNASeq reads that span spliced leader acceptor and polyadenylation sites (i.e. nascent transcripts). Note that the reads net to be trimmed beforehand.")
+    parser.add_argument('reference_genome', type=pathlib.Path, help="""The path to a FASTA file containing the reference genome used to align the RNASeq reads to.""")
+    parser.add_argument('slas_pas_gff', type=pathlib.Path, help="""The path to a GFF file containing the SLAS and PAS sites (they need to be assigned to genes, so probably should have been run through slapassign).""")
+    parser.add_argument('rnaseq_reads', nargs='+', type=pathlib.Path, help="""The path(s) to (potentially multiple) FASTQ files containing the RNASeq reads. Note that no special handling for paired-end reads is done.""")
+    parser.add_argument('spliced_leader_sequence', help="""The spliced leader sequence. This is necessary to filter out reads from mature mRNAs.""", default=None)
+    parser.add_argument('-v', '--verbose', help="""Give more info about the process.""", action="store_const", dest="loglevel", const=logging.INFO, default=logging.WARNING)
+    parser.add_argument('-d', '--debug', help="""Debugging info (very verbose)""", action="store_const", dest="loglevel", const=logging.DEBUG)
+
+    args = parser.parse_args()
+    logger.setLevel(args.loglevel)
+
+    sl_sequence = Seq(args.spliced_leader_sequence)
+    df = slapspan_process_reads(args.slas_pas_gff, args.reference_genome, args.rnaseq_reads, sl_sequence)
+    df.to_csv('/dev/stdout')
