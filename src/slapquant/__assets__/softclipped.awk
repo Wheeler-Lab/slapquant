@@ -1,12 +1,3 @@
-function revcomp(arg) {
-    o = ""
-    for(i = length(arg); i > 0; i--)
-        o = o c[substr(arg, i, 1)]
-    return(o)
-}
-
-BEGIN {c["A"] = "T"; c["C"] = "G"; c["G"] = "C"; c["T"] = "A" ; OFS="\t"}
-
 {
     if ($1 ~ /^@/) { # don't care about the header
         next
@@ -30,9 +21,8 @@ BEGIN {c["A"] = "T"; c["C"] = "G"; c["G"] = "C"; c["T"] = "A" ; OFS="\t"}
                 strand = "+"
             } else {
                 strand = "-"
-                #clipped = revcomp(clipped)
             }
-            print(rname, pos + nr_clipped, strand, "start", clipped)
+            print(rname, pos + nr_clipped, nr_matched, strand, "start", clipped)
         }
     }
     
@@ -45,9 +35,8 @@ BEGIN {c["A"] = "T"; c["C"] = "G"; c["G"] = "C"; c["T"] = "A" ; OFS="\t"}
                 strand = "+"
             } else {
                 strand = "-"
-                #clipped = revcomp(clipped)
             }
-            print(rname, pos + nr_matched, strand, "end", clipped)
+            print(rname, pos + nr_matched, nr_matched, strand, "end", clipped)
         }
     }
 }

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from queue import Queue
-from typing import Generator, Any, Callable, TypeVar
+from typing import Generator, Any, Callable, TypeVar, NamedTuple, Literal
 from threading import Thread, Event
 
 T = TypeVar('T')
@@ -68,3 +68,12 @@ class QueueConsumer(Thread):
         else:
             for item in self._progress(queue_iterator(self.input)):
                 self.target(item)
+
+
+class CandidateAlignment(NamedTuple):
+    sequence_name: str
+    position: int
+    nr_matched: int
+    strand: Literal['+'] | Literal['-']
+    match_location: Literal['start'] | Literal['end']
+    sequence: str
