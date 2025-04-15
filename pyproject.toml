@@ -13,6 +13,7 @@ slapquant = "slapquant.cli:slapquant_main"
 slapassign = "slapquant.cli:slapassign_main"
 slaputrs = "slapquant.cli:slaputrs_main"
 slapidentify = "slapquant.cli:slapidentify_main"
+slapspan = "slapquant.cli:slapspan_main"
 
 [build-system]
 requires = ["flit_core>=3.4"]

@@ -1,34 +1,42 @@
 from __future__ import annotations
 from queue import Queue
-from typing import Generator, Any, Callable, TypeVar
+from typing import Generator, Any, Callable, TypeVar, NamedTuple, Literal
 from threading import Thread, Event
 
-T = TypeVar('T')
-O = TypeVar('O')
+TType = TypeVar('T')
+OType = TypeVar('O')
 
-def queue_iterator(queue: Queue[T]) -> Generator[T, Any, None]:
+
+def queue_iterator(queue: Queue[TType]) -> Generator[TType, Any, None]:
     counter = 0
     while True:
         counter += 1
-        value: T | None = queue.get()
+        value: TType | None = queue.get()
         if value is None:
             break
         yield value
+
 
 class FinishingQueue(Queue):
     def __init__(self, *args, **kwargs):
         Queue.__init__(self, *args, **kwargs)
         self.finished = Event()
 
+
 class QueueTee:
-    def __init__(self, queue: Queue[T], copies=2, maxsize=None):
+    def __init__(self, queue: Queue[TType], copies=2, maxsize=None):
         self.input = queue
-        self.outputs: list[FinishingQueue[T]] = [FinishingQueue[T](maxsize=queue.maxsize if maxsize is None else maxsize) for _ in range(copies)]
-    
+        self.outputs: list[FinishingQueue[TType]] = [
+            FinishingQueue[TType](maxsize=(
+                queue.maxsize if maxsize is None else maxsize)
+            )
+            for _ in range(copies)
+        ]
+
         self.distributor_thread = Thread(target=self.distributor)
         self.distributor_thread.daemon = True
         self.distributor_thread.start()
-    
+
     def distributor(self):
         counter = 0
         while True:
@@ -43,8 +51,15 @@ class QueueTee:
             output.finished.set()
             output.put(None)
 
+
 class QueueConsumer(Thread):
-    def __init__(self, target: Callable[[T],O], input: Queue[T], output: Queue[O] | None = None, progress=None):
+    def __init__(
+        self,
+        target: Callable[[TType], OType],
+        input: Queue[TType],
+        output: Queue[OType] | None = None,
+        progress=None,
+    ):
         Thread.__init__(self)
         self.input = input
         self.output = output
@@ -55,7 +70,7 @@ class QueueConsumer(Thread):
             self._progress = progress
         else:
             self._progress = lambda x: x
-    
+
     def run(self):
         if self.output is not None:
             for item in self._progress(queue_iterator(self.input)):
@@ -68,3 +83,12 @@ class QueueConsumer(Thread):
         else:
             for item in self._progress(queue_iterator(self.input)):
                 self.target(item)
+
+
+class CandidateAlignment(NamedTuple):
+    sequence_name: str
+    position: int
+    nr_matched: int
+    strand: Literal['+'] | Literal['-']
+    match_location: Literal['start'] | Literal['end']
+    sequence: str
