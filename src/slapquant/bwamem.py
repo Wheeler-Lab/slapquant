@@ -36,8 +36,18 @@ class BWAMEM:
 
         # Run BWA-MEM index in a subprocess.
         logger.debug('Starting indexing...')
-        subprocess.run([BWA_PATH, "index", self.reference_fasta],
-                       check=True, capture_output=True)
+        try:
+            subprocess.run([BWA_PATH, "index", self.reference_fasta],
+                           check=True, capture_output=True)
+        except subprocess.CalledProcessError as error:
+            logger.error(
+                "BWA indexing failed. Output of BWA index was:\n"
+                "---STDOUT---\n"
+                f"{error.stdout}"
+                "---STDERR---\n"
+                f"{error.stderr}"
+            )
+            raise
         logger.debug('Indexing finished.')
 
     def align(
@@ -122,6 +132,14 @@ class BWAMEM:
                     raise subprocess.CalledProcessError(awk_return_code, cmd)
                 bwa_return_code = bwa.wait()
                 if bwa_return_code:
+                    stdout, stderr = bwa.communicate()
+                    logger.error(
+                        "BWA mem failed. Output of BWA mem was:\n"
+                        "---STDOUT---\n"
+                        f"{stdout}"
+                        "---STDERR---\n"
+                        f"{stderr}"
+                    )
                     raise subprocess.CalledProcessError(bwa_return_code, cmd)
 
             this_logger.info('Aligning done.')
