@@ -18,26 +18,26 @@ BWA_PATH = os.environ.get('BWA_PATH', 'bwa-mem2')
 class BWAMEM:
     def __init__(self, fasta_file: pathlib.Path):
         # Uses a temporary directory to store the FASTA index
-        self._working_directory = tempfile.TemporaryDirectory(dir=os.getcwd())
-        logger.debug(
-            'Creating temporary directory to hold bwa-mem index '
-            f'"{self._working_directory.name}".'
-        )
+        self._working_directory = os.getcwd() #tempfile.TemporaryDirectory(dir=os.getcwd())
+        # logger.debug(
+        #     'Creating temporary directory to hold bwa-mem index '
+        #     f'"{self._working_directory.name}".'
+        # )
         self.fasta_file = pathlib.Path(fasta_file)
         # Create the index.
         self._index_fasta()
 
     def _index_fasta(self):
         logger.info('Indexing reference genome.')
-        tempdir = pathlib.Path(self._working_directory.name)
-        self.reference_fasta = tempdir / 'reference.fasta'
-        logger.debug('Trying to hard link reference fasta.')
-        os.link(self.fasta_file, self.reference_fasta)
+        # tempdir = pathlib.Path(self._working_directory.name)
+        # self.reference_fasta = tempdir / 'reference.fasta'
+        # logger.debug('Trying to hard link reference fasta.')
+        # os.link(self.fasta_file, self.reference_fasta)
 
         # Run BWA-MEM index in a subprocess.
         logger.debug('Starting indexing...')
         try:
-            subprocess.run([BWA_PATH, "index", self.reference_fasta],
+            subprocess.run([BWA_PATH, "index", self.fasta_file],
                            check=True, capture_output=True)
         except subprocess.CalledProcessError as error:
             logger.error(
@@ -81,7 +81,7 @@ class BWAMEM:
             for fname in readfiles:
                 this_logger.info('Starting to align reads.')
                 cmd = [BWA_PATH, "mem", "-t",
-                       str(threads), "-Y", self.reference_fasta, fname]
+                       str(threads), "-Y", self.fasta_file, fname]
                 this_logger.debug(
                     f'Starting BWA-MEM: "{" ".join([str(v) for v in cmd])}')
                 bwa = subprocess.Popen(
