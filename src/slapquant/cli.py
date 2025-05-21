@@ -194,6 +194,18 @@ def slapassign_main():
         ),
     )
     parser.add_argument(
+        '--strip-existing',
+        help=(
+            "Strip existing SLAS / PAS sites from the gene models GFF file. "
+            "Existing SLAS / PAS sites will cause an error if this option is "
+            "not given."
+        ),
+        action="store_const",
+        dest="strip_existing",
+        const=True,
+        default=False,
+    )
+    parser.add_argument(
         '-v',
         '--verbose',
         help="Give more info about the process.",
@@ -206,7 +218,11 @@ def slapassign_main():
     args = parser.parse_args()
     logger.setLevel(args.loglevel)
 
-    gff = assign_sites(args.gene_models_gff, args.slas_pas_gff)
+    gff = assign_sites(
+        args.gene_models_gff,
+        args.slas_pas_gff,
+        args.strip_existing,
+    )
     gff.save('/dev/stdout')
 
 
