@@ -60,6 +60,15 @@ The output of the `slapassign` run is GFF containing the original gene models an
 
 In the case of SLAS, `slapassign` looks for coding sequence features (CDS) downstream of the SLAS (taking the strand into account). If a PAS site is closer than the next CDS or there is no CDS left on the sequence region, the SLAS site remains unassigned. For PAS, the algorithm looks for CDS upstream. Again, if a SLAS is closer, the PAS remains unassigned. 
 
+### slapidentify
+
+```
+slapidentify genome.fasta reads1.fastq reads2.fastq reads3.fastq > sl_sequence.txt
+```
+This will run `slapidentify` with `genome.fasta` as the reference genome, using `reads1.fastq`, `reads2.fastq` and `reads3.fastq` as the input RNASeq reads. This uses the same spliced leader sequence identification strategy as running `slapquant` without the `-S` argument, but only returns the identified spliced leader sequence.
+
+This is only intended for advanced users. Spliced leader identification by this method is highly sensitive to sequencing data quality, particularly trimming of adapter sequences. If you have any doubt, then use the existing known sequence for a species.
+
 ## API
 
 `slapquant` can be used as a python module, however the internal API is likely still subject to change and documentation is still lacking.
