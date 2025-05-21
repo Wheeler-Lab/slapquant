@@ -1,6 +1,7 @@
 import pathlib
 import logging
 import os
+import re
 import subprocess
 from queue import Queue
 from typing import Literal
@@ -14,6 +15,12 @@ logger = logging.getLogger('bwamem')
 
 BWA_PATH = os.environ.get('BWA_PATH', 'bwa-mem2')
 
+SEQUENCE_RE = re.compile("^[A-Za-z]+$")
+
+class FASTAValidationError(Exception):
+    def __init__(self, file: pathlib.Path):
+        super().__init__(f"{file} is not a valid FASTA file.")
+
 
 class BWAMEM:
     def __init__(self, fasta_file: pathlib.Path):
@@ -24,8 +31,37 @@ class BWAMEM:
             f'"{self._working_directory.name}".'
         )
         self.fasta_file = pathlib.Path(fasta_file)
+        # Validate the FASTA file
+        self._validate_fasta()
         # Create the index.
         self._index_fasta()
+
+    def _validate_fasta(self):
+        def sequences():
+            sequence: str = ""
+            header: str | None = None
+            with self.fasta_file.open("r") as fasta:
+                for line in fasta:
+                    if line[0] == ">":
+                        if header is not None:
+                            yield header, sequence
+                        header = line[1:].strip()
+                        sequence = ""
+                    elif header is None:
+                        # First line isn't a header
+                        raise FASTAValidationError(self.fasta_file)
+                    else:
+                        sequence += line.strip()
+
+        logger.info("Validating FASTA file")
+        hashes = set()
+        for header, sequence in sequences():
+            headerhash = hash(header)
+            if (
+                headerhash in hashes or                 # Duplicated header
+                SEQUENCE_RE.match(sequence) is None     # Invalid sequence
+            ):
+                raise FASTAValidationError(self.fasta_file)
 
     def _index_fasta(self):
         logger.info('Indexing reference genome.')
