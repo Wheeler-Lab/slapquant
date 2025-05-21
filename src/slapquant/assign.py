@@ -6,10 +6,37 @@ import pathlib
 
 logger = logging.getLogger(pathlib.Path(__main__.__file__).stem)
 
+def check_or_strip_nodes(
+    gff: geffa.GffFile,
+    types: list[str],
+    strip: bool
+):
+    if strip:
+        def node_func(node):
+            node.delete()
+        logger.info("Stripping existing SLAS / PAS sites.")
+    else:
+        def node_func(_):
+            raise ValueError(
+                "Existing sites found, cannot proceed. Please use "
+                "'--strip-existing' to remove."
+            )
+    for seqreg in gff.sequence_regions.values():
+        for node in seqreg.node_registry.values():
+            if node.type in types:
+                node_func(node)
 
-def assign_sites(gene_models_gff, slas_pas_sites_gff):
+
+def assign_sites(
+    gene_models_gff: pathlib.Path,
+    slas_pas_sites_gff: pathlib.Path,
+    strip_existing: bool,
+):
     gene_models = geffa.GffFile(
         gene_models_gff, ignore_unknown_feature_types=True)
+
+    check_or_strip_nodes(gene_models_gff, ["SLAS", "PAS"], strip_existing)
+
     slas_pas = geffa.GffFile(slas_pas_sites_gff)
 
     processed_regions = set()
@@ -152,8 +179,10 @@ def assign_sites(gene_models_gff, slas_pas_sites_gff):
     return gene_models
 
 
-def identify_UTRs(annotations_gff):
+def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
     gff = geffa.GffFile(annotations_gff, ignore_unknown_feature_types=True)
+    check_or_strip_nodes(
+        gff, ["five_prime_UTR", "three_prime_UTR"], strip_existing)
 
     for seqreg in gff.sequence_regions.values():
         for gene in [
