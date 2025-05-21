@@ -152,6 +152,7 @@ class BWAMEM:
                         position, nr_matched,
                         strand,
                         match_location,
+                        clipped,
                         sequence,
                     ) = line.split()
                     queue.put(CandidateAlignment(
@@ -160,7 +161,8 @@ class BWAMEM:
                         int(nr_matched),
                         strand,
                         match_location,
-                        sequence
+                        clipped,
+                        sequence,
                     ))
                 awk.stdout.close()
                 awk_return_code = awk.wait()

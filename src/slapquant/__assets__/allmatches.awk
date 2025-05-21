@@ -43,7 +43,7 @@ BEGIN {
             } else {
                 strand = "-"
             }
-            print(rname, pos + nr_clipped, nr_matched, strand, "start", "*")  # We don't need the clipped sequence in this case.
+            print(rname, pos + nr_clipped, nr_matched, strand, "start", "*", "*")  # We don't need the clipped sequence in this case.
         }
     }
 }

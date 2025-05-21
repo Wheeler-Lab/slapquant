@@ -64,19 +64,36 @@ def find_sl_sequence(
     def process(alignment: CandidateAlignment):
         if (process_mode == "all") or (processed[0] < to_process):
             processed[0] += 1
-            sequence = Seq(alignment.sequence)
-            if alignment.match_location == 'end':
-                sequence = sequence.reverse_complement()
-            # We don't want sequences shorter than 8 bases
+            clipped = Seq(alignment.clipped)
+            remainder = Seq(alignment.remainder)
+            # We don't want sequences shorter than 9 bases
             if (
-                len(sequence) < 8 or
-                'TTTTTT' in sequence or
-                'AAAAAA' in sequence
+                len(clipped) < 9 or
+                'TTTTTT' in clipped or
+                'AAAAAA' in clipped
             ):  # Remove polyA motifs
                 return
+            if alignment.match_location == 'end':
+                clipped = clipped.reverse_complement()
+                remainder = remainder.reverse_complement()
+
+            # The candidate SL sequence is the part that is being clipped
+            # before the start of the alignment to the genome.
+            # The SL sequence contains a "G" at the end. The SL acceptor site
+            # is usually the dinucleotide "AG", can be others but always ends
+            # with a "G". The aligner will therefore align everything up to
+            # and including the "G" that should be part of the SL sequence. We
+            # therefore need to recover the missing nucleotide from the
+            # remainder (the aligned bit).
+            # We also only use 9 nucleotides (the last nine positions) of the
+            # SL sequence, this is enough to identify SLAS sites, and avoids
+            # unnecessary discarding of reads due to errors in the extended
+            # clipped sequence.
+            sl_candidate = clipped[-8:] + remainder[0]
+
             # Count sequence
             # TODO: Could use a Bloom filter to make it more performant.
-            counts[sequence] += 1
+            counts[sl_candidate] += 1
         else:
             # Now we're ignoring everything that comes down the queue. We need
             # to do this to avoid deadlock.
@@ -122,7 +139,7 @@ class FilterPattern:
         return (
             (alignment.match_location == self.match_location) and
             (alignment.strand == self.strand) and
-            (self.pattern.match(alignment.sequence) is not None)
+            (self.pattern.match(alignment.clipped) is not None)
         )
 
 
@@ -209,6 +226,7 @@ def process_reads_slapidentify(
     # seems to be most efficient.
     n_workers = min(n_cpus // 8, len(rnaseq_reads))
     n_bwa_threads = n_cpus // n_workers
+    results: Counter[Seq] = Counter()
     with ProcessPoolExecutor(
         n_workers,
         initializer=_init_worker,
@@ -216,41 +234,16 @@ def process_reads_slapidentify(
     ) as executor:
         sequence_iterator = executor.map(
             _process_read_file_slidentify, rnaseq_reads, chunksize=1)
-        if not logger.isEnabledFor(logging.INFO):
-            sequences = list(tqdm(sequence_iterator, total=len(
-                rnaseq_reads), desc="Read files"))
-        else:
-            sequences = list(sequence_iterator)
-
-    # Now that we've gotten the sites back from the worker processes, we need
-    # to check if the same SL sequence was detected for all read files.
-    results = defaultdict[Seq, list[ReadFileResults]](list)
-    for result in sequences:
-        results[result.sl_sequence].append(result)
-    if len(results) > 1:
-        logger.warning('Found multiple different spliced leader sequences:')
-        usages = {sl_sequence: sum([result.spliced_leader_sites.total(
-        ) for result in entry]) for sl_sequence, entry in results.items()}
-        for sl_sequence, readresults in sorted(
-            results.items(), key=lambda entry: -usages[entry[0]]
+        sequence_counter: Counter[Seq]
+        for sequence_counter in tqdm(
+            sequence_iterator,
+            total=len(rnaseq_reads),
+            desc="Read files",
+            disable=logger.isEnabledFor(logging.INFO),
         ):
-            found_files = ", ".join([str(r.read_file) for r in readresults])
-            usage = sum([
-                result.spliced_leader_sites.total() for result in readresults
-            ])
-            logger.warning(
-                f'\t{sl_sequence} found in {found_files}, total usage {usage}'
-            )
-        sl_sequence = max(usages, key=lambda s: usages[s])
-        logger.warning(
-            'Reported results will only include spliced leader acceptor sites'
-            f'identified from the sequence {sl_sequence} with total usage'
-            f'{usages[sl_sequence]}.')
-        logger.warning(
-            'Consider specifying the spliced leader sequence via the -S'
-            'command line option.')
-    else:
-        sl_sequence = list(results.keys())[0]
+            results.update(sequence_counter)
+
+    sl_sequence = results.most_common(1)[0][0]
 
     return sl_sequence
 
@@ -374,17 +367,7 @@ def _process_read_file_slidentify(reads: pathlib.Path):
     for thread in threads[::-1]:
         thread.join()
 
-    # Only use the 8 ending nucleotides of the spliced leader sequence.
-    # This is enough to accurately identify spliced reads, and leads to
-    # less reads being unecessarily discarded.
-    sl_sequence = sl_counts.most_common(1)[0][0][-8:]
-    this_logger.info(f'Found spliced leader sequence {sl_sequence}.')
-
-    return ReadFileResults(
-        reads,
-        sl_sequence,
-        {}, {},
-    )
+    return sl_counts
 
 
 def _process_read_file(reads: pathlib.Path):
@@ -436,10 +419,10 @@ def _process_read_file(reads: pathlib.Path):
         this_logger.info('Starting spliced leader sequence finding.')
         sl_sequence, spliced_leader_thread = find_sl_sequence(
             alignments_tee.outputs[2])
-        # Only use the 8 ending nucleotides of the spliced leader sequence.
+        # Only use the 9 ending nucleotides of the spliced leader sequence.
         # This is enough to accurately identify spliced reads, and leads to
         # less reads being unecessarily discarded.
-        sl_sequence = sl_sequence[-8:]
+        sl_sequence = sl_sequence[-9:]
         this_logger.info(f'Found spliced leader sequence {sl_sequence}.')
         threads.append(spliced_leader_thread)
     else:
