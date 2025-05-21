@@ -37,7 +37,10 @@ def do_alignment(
     return queue, bwa_thread
 
 
-def find_sl_sequence(softclipped: FinishingQueue[CandidateAlignment]):
+def find_sl_sequence(
+    softclipped: FinishingQueue[CandidateAlignment],
+    process_mode: Literal["firstn"] | Literal["all"] = "firstn",
+):
     # Take the softclipped sequences from the given queue and find the spliced
     # leader sequence. This sequence should be the most abundant softclipped
     # sequence after any poly-A tails.
@@ -46,13 +49,20 @@ def find_sl_sequence(softclipped: FinishingQueue[CandidateAlignment]):
     counts = Counter[Seq]()
     # Store how many sequences we've processed
     processed: int = [0]
-    # We only want to process the first N sequences, so that the queues don't
-    # become deadlocked.
-    # Use the queue maxsize as N.
-    to_process = softclipped.maxsize - 1
+    if process_mode == "firstn":
+        # We only want to process the first N sequences, so that the queues
+        # don't become deadlocked.
+        # Use the queue maxsize as N.
+        to_process = softclipped.maxsize - 1
+    elif process_mode == "all":
+        # In this case, we want to process all alignments. Set to_process to
+        # zero, the actual check is for process == "all" below.
+        to_process = 0
+    else:
+        raise ValueError("Unknown process_mode value.")
 
     def process(alignment: CandidateAlignment):
-        if processed[0] < to_process:
+        if (process_mode == "all") or (processed[0] < to_process):
             processed[0] += 1
             sequence = Seq(alignment.sequence)
             if alignment.match_location == 'end':
@@ -75,15 +85,21 @@ def find_sl_sequence(softclipped: FinishingQueue[CandidateAlignment]):
     # Process the softclipped sequences
     consumer = QueueConsumer(process, softclipped)
     consumer.start()
-    # Wait until the finished event is set.
-    softclipped.finished.wait()
 
-    # Return the most abundant sequence we've found
-    # (that's also longer than 8 bases)
-    # Also return the thread, needs to be joined later because we still need
-    # to empty the queue.
-    sl_sequence = counts.most_common(1)[0][0]
-    return sl_sequence, consumer
+    if process_mode == "firstn":
+        # Wait until the finished event is set.
+        softclipped.finished.wait()
+
+        # Return the most abundant sequence we've found
+        # (that's also longer than 8 bases)
+        # Also return the thread, needs to be joined later because we still
+        # need to empty the queue.
+        sl_sequence = counts.most_common(1)[0][0]
+        return sl_sequence, consumer
+    elif process_mode == "all":
+        # Here, we don't wait, but return the full counts object to be
+        # processed later.
+        return counts, consumer
 
 
 class FilterPattern:
@@ -182,10 +198,68 @@ def create_gff(
     return gff
 
 
+def process_reads_slapidentify(
+    reference_genome: pathlib.Path,
+    rnaseq_reads: list[pathlib.Path],
+):
+    # Index the genome
+    bwa = BWAMEM(reference_genome)
+    n_cpus = multiprocessing.cpu_count()
+    # Running the alignment in parallel with 8 cores allocated to each worker
+    # seems to be most efficient.
+    n_workers = min(n_cpus // 8, len(rnaseq_reads))
+    n_bwa_threads = n_cpus // n_workers
+    with ProcessPoolExecutor(
+        n_workers,
+        initializer=_init_worker,
+        initargs=(bwa, n_bwa_threads, None)
+    ) as executor:
+        sequence_iterator = executor.map(
+            _process_read_file_slidentify, rnaseq_reads, chunksize=1)
+        if not logger.isEnabledFor(logging.INFO):
+            sequences = list(tqdm(sequence_iterator, total=len(
+                rnaseq_reads), desc="Read files"))
+        else:
+            sequences = list(sequence_iterator)
+
+    # Now that we've gotten the sites back from the worker processes, we need
+    # to check if the same SL sequence was detected for all read files.
+    results = defaultdict[Seq, list[ReadFileResults]](list)
+    for result in sequences:
+        results[result.sl_sequence].append(result)
+    if len(results) > 1:
+        logger.warning('Found multiple different spliced leader sequences:')
+        usages = {sl_sequence: sum([result.spliced_leader_sites.total(
+        ) for result in entry]) for sl_sequence, entry in results.items()}
+        for sl_sequence, readresults in sorted(
+            results.items(), key=lambda entry: -usages[entry[0]]
+        ):
+            found_files = ", ".join([str(r.read_file) for r in readresults])
+            usage = sum([
+                result.spliced_leader_sites.total() for result in readresults
+            ])
+            logger.warning(
+                f'\t{sl_sequence} found in {found_files}, total usage {usage}'
+            )
+        sl_sequence = max(usages, key=lambda s: usages[s])
+        logger.warning(
+            'Reported results will only include spliced leader acceptor sites'
+            f'identified from the sequence {sl_sequence} with total usage'
+            f'{usages[sl_sequence]}.')
+        logger.warning(
+            'Consider specifying the spliced leader sequence via the -S'
+            'command line option.')
+    else:
+        sl_sequence = list(results.keys())[0]
+
+    return sl_sequence
+
+
 def process_reads(
     reference_genome: pathlib.Path,
     rnaseq_reads: list[pathlib.Path],
-    sl_sequence: Seq | None = None
+    sl_sequence: Seq | None = None,
+    output_type: str = None,
 ):
     # Index the genome
     bwa = BWAMEM(reference_genome)
@@ -237,6 +311,11 @@ def process_reads(
     else:
         sl_sequence = list(results.keys())[0]
 
+    # return the spliced leader sequence if requested, otherwise continue to
+    # GFF generation
+    if output_type == "sl_sequence":
+        return sl_sequence
+
     # Only use spliced leader acceptor sites from the SL sequence with the
     # highest total usage.
     spliced_leader_sites = Counter[Site]()
@@ -267,6 +346,45 @@ class ReadFileResults(NamedTuple):
     sl_sequence: Seq
     spliced_leader_sites: Counter[Site]
     polyA_sites: Counter[Site]
+
+
+def _process_read_file_slidentify(reads: pathlib.Path):
+    global bwa, n_threads
+    # This is the main worker function for the parallel processing of
+    # alignments - a slimmed down version to only identify the SL
+    # sequence.
+
+    # Start thread that calls BWA-MEM and the filtering pipe.
+    # Successfully aligned and filtered reads will appear in the `alignments`
+    # queue. We need to take care to join the `alignment_thread` when done.
+    this_logger = logger.getChild(reads.stem.replace('.fastq', ''))
+    this_logger.debug(f'Starting aligner with {n_threads} threads.')
+    alignments, alignment_thread = do_alignment(
+        bwa, [reads], bwa_threads=n_threads, this_logger=this_logger)
+
+    threads: list[threading.Thread] = [alignment_thread]
+
+    # Find the spliced leader sequence.
+    this_logger.info('Starting spliced leader sequence finding.')
+    sl_counts, spliced_leader_thread = find_sl_sequence(
+        alignments,
+        process_mode="all",
+    )
+    threads.append(spliced_leader_thread)
+    for thread in threads[::-1]:
+        thread.join()
+
+    # Only use the 8 ending nucleotides of the spliced leader sequence.
+    # This is enough to accurately identify spliced reads, and leads to
+    # less reads being unecessarily discarded.
+    sl_sequence = sl_counts.most_common(1)[0][0][-8:]
+    this_logger.info(f'Found spliced leader sequence {sl_sequence}.')
+
+    return ReadFileResults(
+        reads,
+        sl_sequence,
+        {}, {},
+    )
 
 
 def _process_read_file(reads: pathlib.Path):

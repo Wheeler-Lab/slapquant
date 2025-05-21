@@ -10,6 +10,7 @@ requires-python = ">= 3.10"
 
 [project.scripts]
 slapquant = "slapquant.cli:slapquant_main"
+slapidentify = "slapquant.cli:slapidentify_main"
 slapassign = "slapquant.cli:slapassign_main"
 slaputrs = "slapquant.cli:slaputrs_main"
 slapspan = "slapquant.cli:slapspan_main"

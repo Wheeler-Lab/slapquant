@@ -1,7 +1,10 @@
 import pathlib
 import argparse
 
-from slapquant.slapquant import process_reads as slapquant_process_reads
+from slapquant.slapquant import (
+    process_reads as slapquant_process_reads,
+    process_reads_slapidentify as slapidentify_process_reads,
+)
 from slapquant.assign import assign_sites, identify_UTRs
 from slapquant.slapspan import process_reads as slapspan_process_reads
 
@@ -109,6 +112,59 @@ def slapquant_main():
     gff = slapquant_process_reads(
         args.reference_genome, args.rnaseq_reads, sl_sequence)
     gff.save('/dev/stdout')
+
+
+def slapidentify_main():
+    parser = argparse.ArgumentParser(
+        description=(
+            "Identify spliced leader sequence from high-quality RNAseq reads. "
+            "Note that the reads need to be trimmed beforehand."
+        ),
+    )
+    parser.add_argument(
+        'reference_genome',
+        type=pathlib.Path,
+        help=(
+            "The path to a FASTA file containing the reference genome used to "
+            "align the RNASeq reads to."""
+        ),
+    )
+    parser.add_argument(
+        'rnaseq_reads',
+        nargs='+',
+        type=pathlib.Path,
+        help=(
+            "The path(s) to (potentially multiple) FASTQ files containing the "
+            "RNASeq reads. Note that no special handling for paired-end reads "
+            "is done."
+        ),
+    )
+    parser.add_argument(
+        '-v',
+        '--verbose',
+        help="Give more info about the process.",
+        action="store_const",
+        dest="loglevel",
+        const=logging.INFO,
+        default=logging.WARNING,
+    )
+    parser.add_argument(
+        '-d',
+        '--debug',
+        help="Debugging info (very verbose)",
+        action="store_const",
+        dest="loglevel",
+        const=logging.DEBUG,
+    )
+
+    args = parser.parse_args()
+    logger.setLevel(args.loglevel)
+
+    sl_sequence = slapidentify_process_reads(
+        args.reference_genome,
+        args.rnaseq_reads,
+    )
+    print(sl_sequence, file=open('/dev/stdout', 'w'))
 
 
 def slapassign_main():
