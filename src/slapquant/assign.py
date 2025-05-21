@@ -21,10 +21,13 @@ def check_or_strip_nodes(
                 "Existing sites found, cannot proceed. Please use "
                 "'--strip-existing' to remove."
             )
-    for seqreg in gff.sequence_regions.values():
-        for node in seqreg.node_registry.values():
-            if node.type in types:
-                node_func(node)
+    for node in [
+        node
+        for seqreg in gff.sequence_regions.values()
+        for node in seqreg.node_registry.values()
+    ]:
+        if node.type in types:
+            node_func(node)
 
 
 def assign_sites(
@@ -35,7 +38,7 @@ def assign_sites(
     gene_models = geffa.GffFile(
         gene_models_gff, ignore_unknown_feature_types=True)
 
-    check_or_strip_nodes(gene_models_gff, ["SLAS", "PAS"], strip_existing)
+    check_or_strip_nodes(gene_models, ["SLAS", "PAS"], strip_existing)
 
     slas_pas = geffa.GffFile(slas_pas_sites_gff)
 
@@ -217,7 +220,7 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
 
             if slas_sites:
                 slas = sorted(slas_sites, key=lambda x: -
-                              int(x.attributes['Usage']))[0]
+                              int(x.attributes['usage']))[0]
                 CDS = CDSs[0]
                 if mRNA.strand == '+':
                     start = slas.end
@@ -242,7 +245,7 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
                 )
             if pas_sites:
                 pas = sorted(pas_sites, key=lambda x: -
-                             int(x.attributes['Usage']))[0]
+                             int(x.attributes['usage']))[0]
                 CDS = CDSs[-1]
                 if mRNA.strand == '+':
                     start = CDS.end

@@ -238,7 +238,6 @@ def slaputrs_main():
     )
     parser.add_argument(
         'gene_models_slas_pas_gff',
-        nargs='?',
         type=pathlib.Path,
         default='/dev/stdin',
         help=(
@@ -246,6 +245,18 @@ def slaputrs_main():
             "spliced leader accaptor and polyadenylation sites identified "
             "and assigned via a prior slapassign run."
         ),
+    )
+    parser.add_argument(
+        '--strip-existing',
+        help=(
+            "Strip existing UTRs from the gene models GFF file. "
+            "Existing UTRs sites will cause an error if this option is "
+            "not given."
+        ),
+        action="store_const",
+        dest="strip_existing",
+        const=True,
+        default=False,
     )
     parser.add_argument(
         '-v',
@@ -260,7 +271,7 @@ def slaputrs_main():
     args = parser.parse_args()
     logger.setLevel(args.loglevel)
 
-    gff = identify_UTRs(args.gene_models_slas_pas_gff)
+    gff = identify_UTRs(args.gene_models_slas_pas_gff, args.strip_existing)
     gff.save('/dev/stdout')
 
 
