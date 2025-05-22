@@ -268,6 +268,5 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
                         f'Parent={mRNA.attributes["ID"]}'
                     ),
                 )
-        break
 
     return gff
