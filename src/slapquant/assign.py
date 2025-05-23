@@ -94,6 +94,26 @@ def assign_sites(
         )
 
     for seqreg in gene_models.sequence_regions.values():
+        SLAS_to_search = [
+            feature for feature in seqreg.node_registry.values()
+            if feature.type == "SLAS"
+        ]
+        PAS_to_search = [
+            feature for feature in seqreg.node_registry.values()
+            if feature.type == "PAS"
+        ]
+        CDS_to_search_SLAS = [
+            feature.CDS_children()[0]
+            for feature in seqreg.node_registry.values()
+            if feature.type == "mRNA"
+        ]
+        CDS_to_search_PAS = [
+            feature.CDS_children()[-1]
+            for feature in seqreg.node_registry.values()
+            if feature.type == "mRNA"
+        ]
+        nodes_SLAS = PAS_to_search + CDS_to_search_SLAS
+        nodes_PAS = SLAS_to_search + CDS_to_search_PAS
         for slas in (
             node
             for node in seqreg.node_registry.values()
@@ -101,14 +121,16 @@ def assign_sites(
         ):
             nodes_to_search = sorted(
                 (
-                    feature for feature in seqreg.node_registry.values()
+                    feature for feature in nodes_SLAS
                     if (
                         feature.type in ['CDS', 'PAS'] and
                         (
                             (
                                 (slas.strand == '+') and
                                 (feature.strand == '+') and
-                                (feature.start >= slas.end) or
+                                (feature.start >= slas.end)
+                            ) or
+                            (
                                 (slas.strand == '-') and
                                 (feature.strand == '-') and
                                 (feature.end <= slas.start)
@@ -116,7 +138,7 @@ def assign_sites(
                         )
                     )
                 ),
-                key=lambda x: x.start if slas.strand == '+' else -x.end
+                key=lambda x: x.start if slas.strand == '+' else -x.end,
             )
             if len(nodes_to_search) == 0:
                 logger.info(
@@ -141,14 +163,15 @@ def assign_sites(
         ):
             nodes_to_search = sorted(
                 (
-                    feature for feature in seqreg.node_registry.values()
+                    feature for feature in nodes_PAS
                     if (
                         feature.type in ['CDS', 'SLAS'] and
                         (
                             (
                                 (pas.strand == '+') and
                                 (feature.strand == '+') and
-                                (feature.end <= pas.start) or
+                                (feature.end <= pas.start)
+                            ) or (
                                 (pas.strand == '-') and
                                 (feature.strand == '-') and
                                 (feature.start >= pas.end)
