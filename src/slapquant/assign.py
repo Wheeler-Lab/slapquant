@@ -213,10 +213,35 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
             mRNA: geffa.geffa.MRNANode = mRNAs[0]
             CDSs = mRNA.CDS_children()
 
-            slas_sites = [
-                feature for feature in gene.children if feature.type == 'SLAS']
-            pas_sites = [
-                feature for feature in gene.children if feature.type == 'PAS']
+            slas_sites = []
+            for slas in (
+                feature for feature in gene.children
+                if feature.type == 'SLAS'
+            ):
+                if (
+                    (mRNA.strand == '+' and CDSs[0].start < slas.end) or
+                    (mRNA.strand == '-' and CDSs[0].end > slas.start)
+                ):
+                    logger.warning(
+                        f"SLAS {slas.attributes['ID']} was assigned wrongly, "
+                        "it is behind the start of the CDS. Skipping.")
+                else:
+                    slas_sites.append(slas)
+
+            pas_sites = []
+            for pas in (
+                feature for feature in gene.children
+                if feature.type == 'PAS'
+            ):
+                if (
+                    (mRNA.strand == '+' and CDSs[-1].end > pas.start) or
+                    (mRNA.strand == '-' and CDSs[-1].start < pas.end)
+                ):
+                    logger.warning(
+                        f"PAS {pas.attributes['ID']} was assigned wrongly, "
+                        "it comes before the start of the CDS. Skipping.")
+                else:
+                    pas_sites.append(pas)
 
             if slas_sites:
                 slas = sorted(slas_sites, key=lambda x: -
