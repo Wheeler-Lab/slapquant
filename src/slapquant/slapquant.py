@@ -134,12 +134,27 @@ class FilterPattern:
         self.match_location = match_location
 
     def __call__(self, alignment: CandidateAlignment):
+        # The SL sequence often (always?) ends in the same nucleotide (often
+        # "G") as the SL acceptor site dinucleotide. This means that this "G"
+        # is parted of the aligned portion of the sequence and is not retained
+        # in the softclipped part. To alleviate this, we match both the
+        # softclipped part only, and separately, the softclipped part plus the
+        # first nucleotide of the aligned sequence. Alternatively, we could
+        # trim a trailing "G" of the given SL sequence, but we don't know if
+        # this would hold for all organisms.
+        if alignment.strand == '+':
+            aligned_sl_nucleotide = alignment.clipped + alignment.remainder[0]
+        else:
+            aligned_sl_nucleotide = alignment.remainder[-1] + alignment.clipped
+
         # We want the pattern to match the sequence, but also the strand and
         # the start or end of the alignment.
         return (
             (alignment.match_location == self.match_location) and
-            (alignment.strand == self.strand) and
-            (self.pattern.match(alignment.clipped) is not None)
+            (alignment.strand == self.strand) and (
+                (self.pattern.match(alignment.clipped) is not None) or
+                (self.pattern.match(aligned_sl_nucleotide) is not None)
+            )
         )
 
 
