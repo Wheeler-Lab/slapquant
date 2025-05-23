@@ -6,6 +6,7 @@ import pathlib
 
 logger = logging.getLogger(pathlib.Path(__main__.__file__).stem)
 
+
 def check_or_strip_nodes(
     gff: geffa.GffFile,
     types: list[str],
@@ -47,11 +48,6 @@ def assign_sites(
         try:
             sitesreg = slas_pas.sequence_regions[seqreg.name]
         except KeyError:
-            logger.warning(
-                "SLAS/PAS sites GFF does not contain sequence region "
-                f"{seqreg.name} - possible mismatch between slapquant "
-                "run and given gene models?"
-            )
             continue
         for SLAS in (
             feature
@@ -199,7 +195,7 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
                 if feature.type == 'mRNA'
             ]
             if len(mRNAs) == 0:
-                logger.warning(
+                logger.info(
                     f"{gene.attributes['ID']} is not a protein coding gene, "
                     "skipping UTR assignment."
                 )
