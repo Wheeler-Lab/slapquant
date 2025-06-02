@@ -24,7 +24,7 @@
             } else {
                 strand = "-"
             }
-            print(rname, pos + nr_clipped, nr_matched, strand, "start", clipped, remainder)
+            print(rname, pos, nr_matched, strand, "start", clipped, remainder)
         }
     }
     
