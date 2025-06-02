@@ -133,6 +133,13 @@ class FilterPattern:
         self.strand = strand
         self.match_location = match_location
 
+        self.counter = 0
+
+    def __del__(self):
+        logger.debug(
+            f"Filter pattern '{self.pattern.pattern}' strand {self.strand} "
+            f"location {self.match_location} matched {self.counter} times")
+
     def __call__(self, alignment: CandidateAlignment):
         # The SL sequence often (always?) ends in the same nucleotide (often
         # "G") as the SL acceptor site dinucleotide. This means that this "G"
@@ -149,13 +156,16 @@ class FilterPattern:
 
         # We want the pattern to match the sequence, but also the strand and
         # the start or end of the alignment.
-        return (
+        match = (
             (alignment.match_location == self.match_location) and
             (alignment.strand == self.strand) and (
-                (self.pattern.match(alignment.clipped) is not None) or
-                (self.pattern.match(aligned_sl_nucleotide) is not None)
+                (self.pattern.search(alignment.clipped) is not None) or
+                (self.pattern.search(aligned_sl_nucleotide) is not None)
             )
         )
+        if match:
+            self.counter += 1
+        return match
 
 
 class Site(NamedTuple):
