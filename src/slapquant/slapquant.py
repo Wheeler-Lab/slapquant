@@ -250,7 +250,7 @@ def process_reads_slapidentify(
     # Running the alignment in parallel with 8 cores allocated to each worker
     # seems to be most efficient.
     n_workers = min(n_cpus // 8, len(rnaseq_reads))
-    n_bwa_threads = n_cpus // n_workers
+    n_bwa_threads = min(n_cpus // n_workers, 8)
     results: Counter[Seq] = Counter()
     with ProcessPoolExecutor(
         n_workers,
@@ -285,7 +285,7 @@ def process_reads(
     # Running the alignment in parallel with 8 cores allocated to each worker
     # seems to be most efficient.
     n_workers = min(n_cpus // 8, len(rnaseq_reads))
-    n_bwa_threads = n_cpus // n_workers
+    n_bwa_threads = min(n_cpus // n_workers, 8)
     with ProcessPoolExecutor(
         n_workers,
         initializer=_init_worker,
