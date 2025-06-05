@@ -207,11 +207,7 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
             for feature in seqreg.node_registry.values()
             if feature.type == 'gene'
         ]:
-            mRNAs = [
-                feature
-                for feature in gene.children
-                if feature.type == 'mRNA'
-            ]
+            mRNAs = gene.children_of_type(geffa.geffa.MRNANode)
             if len(mRNAs) == 0:
                 logger.info(
                     f"{gene.attributes['ID']} is not a protein coding gene, "
@@ -227,11 +223,8 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
             mRNA: geffa.geffa.MRNANode = mRNAs[0]
             CDSs = mRNA.CDS_children()
 
-            slas_sites = []
-            for slas in (
-                feature for feature in gene.children
-                if feature.type == 'SLAS'
-            ):
+            slas_sites: list[geffa.geffa.SLASNode] = []
+            for slas in gene.children_of_type(geffa.geffa.SLASNode):
                 if (
                     (mRNA.strand == '+' and CDSs[0].start < slas.end) or
                     (mRNA.strand == '-' and CDSs[0].end > slas.start)
@@ -242,11 +235,8 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
                 else:
                     slas_sites.append(slas)
 
-            pas_sites = []
-            for pas in (
-                feature for feature in gene.children
-                if feature.type == 'PAS'
-            ):
+            pas_sites: list[geffa.geffa.PASNode] = []
+            for pas in gene.children_of_type(geffa.geffa.PASNode):
                 if (
                     (mRNA.strand == '+' and CDSs[-1].end > pas.start) or
                     (mRNA.strand == '-' and CDSs[-1].start < pas.end)
@@ -260,17 +250,17 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
             if slas_sites:
                 slas = sorted(slas_sites, key=lambda x: -
                               int(x.attributes['usage']))[0]
-                CDS = CDSs[0]
+                cds = CDSs[0]
                 if mRNA.strand == '+':
                     start = slas.end
-                    end = CDS.start
+                    end = cds.start - 1
                 else:
                     end = slas.start
-                    start = CDS.end
+                    start = cds.end + 1
                 geffa.geffa.FivePrimeUTRNode(
                     -1,
                     seqreg,
-                    'RNASeq',
+                    'slaputrs',
                     'five_prime_UTR',
                     start,
                     end,
@@ -285,17 +275,17 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
             if pas_sites:
                 pas = sorted(pas_sites, key=lambda x: -
                              int(x.attributes['usage']))[0]
-                CDS = CDSs[-1]
+                cds = CDSs[-1]
                 if mRNA.strand == '+':
-                    start = CDS.end
+                    start = cds.end + 1
                     end = pas.start
                 else:
-                    end = CDS.start
+                    end = cds.start - 1
                     start = pas.end
                 geffa.geffa.ThreePrimeUTRNode(
                     -1,
                     seqreg,
-                    'RNASeq',
+                    'slaputrs',
                     'three_prime_UTR',
                     start,
                     end,
