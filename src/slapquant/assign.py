@@ -13,11 +13,11 @@ def check_or_strip_nodes(
     strip: bool
 ):
     if strip:
-        def node_func(node):
+        def node_func(node: geffa.geffa.Node) -> None:
             node.delete()
         logger.info("Stripping existing SLAS / PAS sites.")
     else:
-        def node_func(_):
+        def node_func(node: geffa.geffa.Node) -> None:
             raise ValueError(
                 "Existing sites found, cannot proceed. Please use "
                 "'--strip-existing' to remove."
@@ -35,6 +35,7 @@ def assign_sites(
     gene_models_gff: pathlib.Path,
     slas_pas_sites_gff: pathlib.Path,
     strip_existing: bool,
+    min_usage: int = 4,
 ):
     gene_models = geffa.GffFile(
         gene_models_gff, ignore_unknown_feature_types=True)
@@ -43,17 +44,15 @@ def assign_sites(
 
     slas_pas = geffa.GffFile(slas_pas_sites_gff)
 
-    processed_regions = set()
+    processed_regions: set[str] = set()
     for seqreg in gene_models.sequence_regions.values():
         try:
             sitesreg = slas_pas.sequence_regions[seqreg.name]
         except KeyError:
             continue
-        for SLAS in (
-            feature
-            for feature in sitesreg.node_registry.values()
-            if feature.type == 'SLAS'
-        ):
+        for SLAS in sitesreg.nodes_of_type(geffa.geffa.SLASNode):
+            if int(SLAS.attributes["usage"]) < min_usage:
+                continue
             geffa.geffa.SLASNode(
                 SLAS.line_nr,
                 seqreg,
@@ -66,11 +65,9 @@ def assign_sites(
                 '.',
                 f"ID={SLAS.attributes['ID']};usage={SLAS.attributes['usage']}",
             )
-        for PAS in (
-            feature
-            for feature in sitesreg.node_registry.values()
-            if feature.type == 'PAS'
-        ):
+        for PAS in sitesreg.nodes_of_type(geffa.geffa.PASNode):
+            if int(SLAS.attributes["usage"]) < min_usage:
+                continue
             geffa.geffa.PASNode(
                 PAS.line_nr,
                 seqreg,
@@ -95,22 +92,20 @@ def assign_sites(
 
     for seqreg in gene_models.sequence_regions.values():
         SLAS_to_search = [
-            feature for feature in seqreg.node_registry.values()
-            if feature.type == "SLAS"
+            SLAS for SLAS in seqreg.nodes_of_type(geffa.geffa.SLASNode)
+            if int(SLAS.attributes["usage"]) >= min_usage
         ]
         PAS_to_search = [
-            feature for feature in seqreg.node_registry.values()
-            if feature.type == "PAS"
+            PAS for PAS in seqreg.nodes_of_type(geffa.geffa.PASNode)
+            if int(PAS.attributes["usage"]) >= min_usage
         ]
         CDS_to_search_SLAS = [
-            feature.CDS_children()[0]
-            for feature in seqreg.node_registry.values()
-            if feature.type == "mRNA"
+            mRNA.CDS_children()[0]
+            for mRNA in seqreg.nodes_of_type(geffa.geffa.MRNANode)
         ]
         CDS_to_search_PAS = [
-            feature.CDS_children()[-1]
-            for feature in seqreg.node_registry.values()
-            if feature.type == "mRNA"
+            mRNA.CDS_children()[-1]
+            for mRNA in seqreg.nodes_of_type(geffa.geffa.MRNANode)
         ]
         nodes_SLAS = PAS_to_search + CDS_to_search_SLAS
         nodes_PAS = SLAS_to_search + CDS_to_search_PAS
@@ -128,12 +123,12 @@ def assign_sites(
                             (
                                 (slas.strand == '+') and
                                 (feature.strand == '+') and
-                                (feature.start >= slas.end)
+                                (feature.start > slas.end)
                             ) or
                             (
                                 (slas.strand == '-') and
                                 (feature.strand == '-') and
-                                (feature.end <= slas.start)
+                                (feature.end < slas.start)
                             )
                         )
                     )
@@ -170,11 +165,11 @@ def assign_sites(
                             (
                                 (pas.strand == '+') and
                                 (feature.strand == '+') and
-                                (feature.end <= pas.start)
+                                (feature.end < pas.start)
                             ) or (
                                 (pas.strand == '-') and
                                 (feature.strand == '-') and
-                                (feature.start >= pas.end)
+                                (feature.start > pas.end)
                             )
                         )
                     )
