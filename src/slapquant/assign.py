@@ -234,26 +234,32 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
                               int(x.attributes['usage']))[0]
                 cds = CDSs[0]
                 if mRNA.strand == '+':
-                    start = slas.end
+                    start = slas.end + 2
                     end = cds.start - 1
                 else:
-                    end = slas.start
+                    end = slas.start - 1
                     start = cds.end + 1
-                geffa.geffa.FivePrimeUTRNode(
-                    -1,
-                    seqreg,
-                    'slaputrs',
-                    'five_prime_UTR',
-                    start,
-                    end,
-                    '.',
-                    mRNA.strand,
-                    '.',
-                    (
-                        f'ID={mRNA.attributes["ID"]}_UTR5;'
-                        f'Parent={mRNA.attributes["ID"]}'
-                    ),
-                )
+                utr_length = end - start + 1
+                if utr_length < 1:
+                    logger.warning(
+                        f"Could not assign 5'UTR to {mRNA.attributes['ID']}, "
+                        "the UTR would have been zero length.")
+                else:
+                    geffa.geffa.FivePrimeUTRNode(
+                        -1,
+                        seqreg,
+                        'slaputrs',
+                        'five_prime_UTR',
+                        start,
+                        end,
+                        '.',
+                        mRNA.strand,
+                        '.',
+                        (
+                            f'ID={mRNA.attributes["ID"]}_UTR5;'
+                            f'Parent={mRNA.attributes["ID"]}'
+                        ),
+                    )
             if pas_sites:
                 pas = sorted(pas_sites, key=lambda x: -
                              int(x.attributes['usage']))[0]
