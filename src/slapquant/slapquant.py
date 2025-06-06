@@ -431,10 +431,10 @@ def _process_read_file(reads: pathlib.Path):
         [
             # We look for at least 6 As softclipped at the end of a read if
             # we're on the forward strand...
-            FilterPattern('^A{6,}', '+', 'end'),
+            FilterPattern('A{5,}', '+', 'end'),
             # ...and for at least 6 Ts softclipped at the start of a read if
             # we're on the reverse strand.
-            FilterPattern('T{6,}$', '-', 'start'),
+            FilterPattern('T{5,}', '-', 'start'),
         ]
     )
     threads.append(polyA_sites_thread)
