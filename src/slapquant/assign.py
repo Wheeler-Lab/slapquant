@@ -51,8 +51,6 @@ def assign_sites(
         except KeyError:
             continue
         for SLAS in sitesreg.nodes_of_type(geffa.geffa.SLASNode):
-            if int(SLAS.attributes["usage"]) < min_usage:
-                continue
             geffa.geffa.SLASNode(
                 SLAS.line_nr,
                 seqreg,
@@ -66,8 +64,6 @@ def assign_sites(
                 f"ID={SLAS.attributes['ID']};usage={SLAS.attributes['usage']}",
             )
         for PAS in sitesreg.nodes_of_type(geffa.geffa.PASNode):
-            if int(SLAS.attributes["usage"]) < min_usage:
-                continue
             geffa.geffa.PASNode(
                 PAS.line_nr,
                 seqreg,
@@ -109,27 +105,20 @@ def assign_sites(
         ]
         nodes_SLAS = PAS_to_search + CDS_to_search_SLAS
         nodes_PAS = SLAS_to_search + CDS_to_search_PAS
-        for slas in (
-            node
-            for node in seqreg.node_registry.values()
-            if node.type == 'SLAS'
-        ):
+        for slas in seqreg.nodes_of_type(geffa.geffa.SLASNode):
             nodes_to_search = sorted(
                 (
                     feature for feature in nodes_SLAS
                     if (
-                        feature.type in ['CDS', 'PAS'] and
                         (
-                            (
-                                (slas.strand == '+') and
-                                (feature.strand == '+') and
-                                (feature.start > slas.end)
-                            ) or
-                            (
-                                (slas.strand == '-') and
-                                (feature.strand == '-') and
-                                (feature.end < slas.start)
-                            )
+                            (slas.strand == '+') and
+                            (feature.strand == '+') and
+                            (feature.start > slas.end)
+                        ) or
+                        (
+                            (slas.strand == '-') and
+                            (feature.strand == '-') and
+                            (feature.end < slas.start)
                         )
                     )
                 ),
@@ -151,26 +140,19 @@ def assign_sites(
             else:
                 slas.add_parent(closest_node.parents[0].parents[0])
 
-        for pas in (
-            node
-            for node in seqreg.node_registry.values()
-            if node.type == 'PAS'
-        ):
+        for pas in seqreg.nodes_of_type(geffa.geffa.PASNode):
             nodes_to_search = sorted(
                 (
                     feature for feature in nodes_PAS
                     if (
-                        feature.type in ['CDS', 'SLAS'] and
                         (
-                            (
-                                (pas.strand == '+') and
-                                (feature.strand == '+') and
-                                (feature.end < pas.start)
-                            ) or (
-                                (pas.strand == '-') and
-                                (feature.strand == '-') and
-                                (feature.start > pas.end)
-                            )
+                            (pas.strand == '+') and
+                            (feature.strand == '+') and
+                            (feature.end < pas.start)
+                        ) or (
+                            (pas.strand == '-') and
+                            (feature.strand == '-') and
+                            (feature.start > pas.end)
                         )
                     )
                 ),
