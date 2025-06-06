@@ -4,6 +4,8 @@ import logging
 import __main__
 import pathlib
 
+import numpy as np
+
 logger = logging.getLogger(pathlib.Path(__main__.__file__).stem)
 
 
@@ -261,15 +263,24 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
                         ),
                     )
             if pas_sites:
-                pas = sorted(pas_sites, key=lambda x: -
-                             int(x.attributes['usage']))[0]
+                positions = [
+                    pas.start
+                    for pas in sorted(pas_sites, key=lambda p: p.start)
+                    for _ in range(int(pas.attributes["usage"]))
+                ]
+                if len(positions) % 2 == 0:
+                    if mRNA.strand == '+':
+                        del positions[0]
+                    else:
+                        del positions[-1]
+                position = int(np.median(positions))
                 cds = CDSs[-1]
                 if mRNA.strand == '+':
                     start = cds.end + 1
-                    end = pas.start
+                    end = position
                 else:
                     end = cds.start - 1
-                    start = pas.end
+                    start = position
                 geffa.geffa.ThreePrimeUTRNode(
                     -1,
                     seqreg,
