@@ -270,6 +270,22 @@ def slaputrs_main():
         default=False,
     )
     parser.add_argument(
+        '--max-5UTR-length',
+        help=(
+            "Maximum permissible length of 5'UTRs (default 5000bp)"
+        ),
+        type=int,
+        default=5000,
+    )
+    parser.add_argument(
+        '--max-3UTR-length',
+        help=(
+            "Maximum permissible length of 3'UTRs (default 5000bp)"
+        ),
+        type=int,
+        default=5000,
+    )
+    parser.add_argument(
         '-v',
         '--verbose',
         help="Give more info about the process.",
@@ -282,7 +298,12 @@ def slaputrs_main():
     args = parser.parse_args()
     logger.setLevel(args.loglevel)
 
-    gff = identify_UTRs(args.gene_models_slas_pas_gff, args.strip_existing)
+    gff = identify_UTRs(
+        args.gene_models_slas_pas_gff,
+        args.strip_existing,
+        max_5utr_length=args.max_5UTR_length,
+        max_3utr_length=args.max_3UTR_length,
+    )
     gff.save('/dev/stdout')
 
 

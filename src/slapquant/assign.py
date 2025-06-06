@@ -180,7 +180,12 @@ def assign_sites(
     return gene_models
 
 
-def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
+def identify_UTRs(
+    annotations_gff: pathlib.Path,
+    strip_existing: bool,
+    max_5utr_length: int = 5000,
+    max_3utr_length: int = 5000,
+):
     gff = geffa.GffFile(annotations_gff, ignore_unknown_feature_types=True)
     check_or_strip_nodes(
         gff, ["five_prime_UTR", "three_prime_UTR"], strip_existing)
@@ -216,7 +221,12 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
                     logger.warning(
                         f"SLAS {slas.attributes['ID']} was assigned wrongly, "
                         "it is behind the start of the CDS. Skipping.")
-                else:
+                elif (
+                    (mRNA.strand == '+' and
+                     (CDSs[0].start - slas.end <= max_5utr_length)) or
+                    (mRNA.strand == '-' and
+                     (slas.start - CDSs[0].end <= max_5utr_length))
+                ):
                     slas_sites.append(slas)
 
             pas_sites: list[geffa.geffa.PASNode] = []
@@ -228,7 +238,12 @@ def identify_UTRs(annotations_gff: pathlib.Path, strip_existing: bool):
                     logger.warning(
                         f"PAS {pas.attributes['ID']} was assigned wrongly, "
                         "it comes before the start of the CDS. Skipping.")
-                else:
+                elif (
+                    (mRNA.strand == '+' and
+                     (pas.start - CDSs[-1].end <= max_3utr_length)) or
+                    (mRNA.strand == '-' and
+                     (CDSs[-1].start - pas.end <= max_3utr_length))
+                ):
                     pas_sites.append(pas)
 
             if slas_sites:
