@@ -37,7 +37,8 @@ def assign_sites(
     gene_models_gff: pathlib.Path,
     slas_pas_sites_gff: pathlib.Path,
     strip_existing: bool,
-    min_usage: int = 4,
+    min_slas_usage: int = 4,
+    min_pas_usage: int = 2,
 ):
     gene_models = geffa.GffFile(
         gene_models_gff, ignore_unknown_feature_types=True)
@@ -91,11 +92,11 @@ def assign_sites(
     for seqreg in gene_models.sequence_regions.values():
         SLAS_to_search = [
             SLAS for SLAS in seqreg.nodes_of_type(geffa.geffa.SLASNode)
-            if int(SLAS.attributes["usage"]) >= min_usage
+            if int(SLAS.attributes["usage"]) >= min_slas_usage
         ]
         PAS_to_search = [
             PAS for PAS in seqreg.nodes_of_type(geffa.geffa.PASNode)
-            if int(PAS.attributes["usage"]) >= min_usage
+            if int(PAS.attributes["usage"]) >= min_pas_usage
         ]
         CDS_to_search_SLAS = [
             mRNA.CDS_children()[0]

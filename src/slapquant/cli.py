@@ -206,11 +206,21 @@ def slapassign_main():
         default=False,
     )
     parser.add_argument(
-        '--min-usage', '-m',
+        '--min-slas-usage', '-m',
         help=(
-            "When assigning sites to genes, if SLAS / PAS sites are between a "
+            "When assigning sites to genes, if SLAS sites are between a "
             "CDS and a site to be assigned, only consider those with a "
             "minimum usage count. (default 4)"
+        ),
+        type=int,
+        default=4,
+    )
+    parser.add_argument(
+        '--min-pas-usage', '-n',
+        help=(
+            "When assigning sites to genes, if PAS sites are between a "
+            "CDS and a site to be assigned, only consider those with a "
+            "minimum usage count. (default 2)"
         ),
         type=int,
         default=4,
@@ -232,7 +242,8 @@ def slapassign_main():
         args.gene_models_gff,
         args.slas_pas_gff,
         args.strip_existing,
-        min_usage=args.min_usage,
+        min_slas_usage=args.min_slas_usage,
+        min_pas_usage=args.min_pas_usage,
     )
     gff.save('/dev/stdout')
 
