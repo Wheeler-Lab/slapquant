@@ -277,8 +277,8 @@ def process_reads(
     reference_genome: pathlib.Path,
     rnaseq_reads: list[pathlib.Path],
     sl_sequence: Seq | None = None,
-    sl_length: int | None = None,
-    pa_length: int | None = None,
+    sl_length: int = 9,
+    pa_length: int = 6,
     output_type: str = None,
 ):
     # Index the genome
@@ -352,7 +352,13 @@ def process_reads(
     return create_gff(reference_genome, spliced_leader_sites, polyA_sites)
 
 
-def _init_worker(_bwa: BWAMEM, _n_threads: int, _sl_sequence: Seq | None, _sl_length: int | None, _pa_length: int | None):
+def _init_worker(
+    _bwa: BWAMEM,
+    _n_threads: int,
+    _sl_sequence: Seq | None,
+    _sl_length: int,
+    _pa_length: int
+):
     # This just initialises the parallel worker process with the BWAMEM object
     # and the number of threads the alignment should use.
     global bwa, n_threads, sl_sequence, sl_length, pa_length
@@ -414,13 +420,6 @@ def _process_read_file(reads: pathlib.Path):
 
     threads: list[threading.Thread] = [alignment_thread]
 
-    # If the spliced leader length or polyA length is not specified, we
-    # use the default values.
-    if sl_length is None:
-        sl_length = 9
-    if pa_length is None:
-        pa_length = 6
-
     # Take the alignments queue and copy anything that gets dropped into it
     # into two or three separate queues, depending on if we need to find the
     # spliced leader sequence.
@@ -442,10 +441,10 @@ def _process_read_file(reads: pathlib.Path):
         [
             # We look for at least `pa_length` As softclipped at the end of a read if
             # we're on the forward strand...
-            FilterPattern(f'A{{{pa_length - 1},}}', '+', 'end'),
+            FilterPattern(f'A{{{pa_length},}}', '+', 'end'),
             # ...and for at least `pa_length` Ts softclipped at the start of a read if
             # we're on the reverse strand.
-            FilterPattern(f'T{{{pa_length - 1},}}', '-', 'start'),
+            FilterPattern(f'T{{{pa_length},}}', '-', 'start'),
         ]
     )
     threads.append(polyA_sites_thread)

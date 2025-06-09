@@ -79,7 +79,7 @@ def slapquant_main():
             "(default 9bp)"
         ),
         type=int,
-        default=None
+        default=9
     )
     parser.add_argument(
         "--pa-length",
@@ -88,7 +88,7 @@ def slapquant_main():
             "(default 6bp)"
         ),
         type=int,
-        default=None
+        default=6
     )
     parser.add_argument(
         '-v',
@@ -118,8 +118,6 @@ def slapquant_main():
             "Please provide either a species or a spliced leader sequence, "
             "not both."
         )
-    sl_length = args.sl_length
-    pa_length = args.pa_length
 
     if sl_species is not None:
         try:
@@ -130,7 +128,12 @@ def slapquant_main():
     if sl_sequence is not None:
         sl_sequence = Seq(sl_sequence)
     gff = slapquant_process_reads(
-        args.reference_genome, args.rnaseq_reads, sl_sequence, sl_length, pa_length)
+        args.reference_genome,
+        args.rnaseq_reads,
+        sl_sequence,
+        args.sl_length,
+        args.pa_length
+    )
     gff.save('/dev/stdout')
 
 
