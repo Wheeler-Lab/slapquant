@@ -41,6 +41,7 @@ def find_sl_sequence(
     softclipped: FinishingQueue[CandidateAlignment],
     process_mode: Literal["firstn"] | Literal["all"] = "firstn",
 ):
+    global sl_length
     # Take the softclipped sequences from the given queue and find the spliced
     # leader sequence. This sequence should be the most abundant softclipped
     # sequence after any poly-A tails.
@@ -85,11 +86,11 @@ def find_sl_sequence(
             # and including the "G" that should be part of the SL sequence. We
             # therefore need to recover the missing nucleotide from the
             # remainder (the aligned bit).
-            # We also only use 9 nucleotides (the last nine positions) of the
+            # We also only use `sl_length` nucleotides (the last positions) of the
             # SL sequence, this is enough to identify SLAS sites, and avoids
             # unnecessary discarding of reads due to errors in the extended
             # clipped sequence.
-            sl_candidate = clipped[-8:] + remainder[0]
+            sl_candidate = clipped[-sl_length+1:] + remainder[0]
 
             # Count sequence
             # TODO: Could use a Bloom filter to make it more performant.
@@ -243,6 +244,7 @@ def create_gff(
 def process_reads_slapidentify(
     reference_genome: pathlib.Path,
     rnaseq_reads: list[pathlib.Path],
+    sl_length: int = 9,
 ):
     # Index the genome
     bwa = BWAMEM(reference_genome)
@@ -465,6 +467,11 @@ def _process_read_file(reads: pathlib.Path):
     # Only use the `sl_length` ending nucleotides of the spliced leader
     # sequence. This is enough to accurately identify spliced reads, and leads\
     # to less reads being unecessarily discarded.
+    if len(sl_sequence) > sl_length:
+        this_logger.warning(
+            f"The given (or detected) SL sequence is {len(sl_sequence)} bp "
+            f"long, truncating to {sl_length} bps."
+        )
     sl_sequence = sl_sequence[-sl_length:]
 
     # Now identify softclipped reads that contain the spliced leader sequence.

@@ -163,6 +163,15 @@ def slapidentify_main():
         ),
     )
     parser.add_argument(
+        "--sl-length",
+        help=(
+            "Length of the spliced leader sequence to be identified. "
+            "(default 9bp)"
+        ),
+        type=int,
+        default=9
+    )
+    parser.add_argument(
         '-v',
         '--verbose',
         help="Give more info about the process.",
