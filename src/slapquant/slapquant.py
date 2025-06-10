@@ -460,10 +460,17 @@ def _process_read_file(reads: pathlib.Path):
         sl_sequence = sl_sequence[-sl_length:]
         this_logger.info(f'Found spliced leader sequence {sl_sequence}.')
         threads.append(spliced_leader_thread)
-    else:
+    elif sl_sequence.length >= sl_length:
         this_logger.info(
             f"Spliced leader sequence specified ('{sl_sequence}'), "
             "skipping automatic detection"
+        )
+        sl_sequence = sl_sequence[-sl_length:]
+    else:
+        this_logger.warning(
+            f"Spliced leader sequence specified ('{sl_sequence}'), "
+            " skipping automatic detection, "
+            f"but is shorter than {sl_length} nucleotides. "
         )
 
     # Now identify softclipped reads that contain the spliced leader sequence.
