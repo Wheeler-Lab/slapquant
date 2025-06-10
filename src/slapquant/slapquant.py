@@ -255,7 +255,7 @@ def process_reads_slapidentify(
     with ProcessPoolExecutor(
         n_workers,
         initializer=_init_worker,
-        initargs=(bwa, n_bwa_threads, None)
+        initargs=(bwa, n_bwa_threads, None, sl_length, None)
     ) as executor:
         sequence_iterator = executor.map(
             _process_read_file_slidentify, rnaseq_reads, chunksize=1)
@@ -277,6 +277,8 @@ def process_reads(
     reference_genome: pathlib.Path,
     rnaseq_reads: list[pathlib.Path],
     sl_sequence: Seq | None = None,
+    sl_length: int = 9,
+    pa_length: int = 6,
     output_type: str = None,
 ):
     # Index the genome
@@ -289,7 +291,7 @@ def process_reads(
     with ProcessPoolExecutor(
         n_workers,
         initializer=_init_worker,
-        initargs=(bwa, n_bwa_threads, sl_sequence)
+        initargs=(bwa, n_bwa_threads, sl_sequence, sl_length, pa_length)
     ) as executor:
         sites_iterator = executor.map(
             _process_read_file, rnaseq_reads, chunksize=1)
@@ -350,13 +352,21 @@ def process_reads(
     return create_gff(reference_genome, spliced_leader_sites, polyA_sites)
 
 
-def _init_worker(_bwa: BWAMEM, _n_threads: int, _sl_sequence: Seq | None):
+def _init_worker(
+    _bwa: BWAMEM,
+    _n_threads: int,
+    _sl_sequence: Seq | None,
+    _sl_length: int,
+    _pa_length: int
+):
     # This just initialises the parallel worker process with the BWAMEM object
     # and the number of threads the alignment should use.
-    global bwa, n_threads, sl_sequence
+    global bwa, n_threads, sl_sequence, sl_length, pa_length
     bwa = _bwa
     n_threads = _n_threads
     sl_sequence = _sl_sequence
+    sl_length = _sl_length
+    pa_length = _pa_length
 
 
 class ReadFileResults(NamedTuple):
@@ -396,7 +406,7 @@ def _process_read_file_slidentify(reads: pathlib.Path):
 
 
 def _process_read_file(reads: pathlib.Path):
-    global bwa, n_threads, sl_sequence
+    global bwa, n_threads, sl_sequence, sl_length, pa_length
     # This is the main worker function for the parallel processing of
     # alignments.
 
@@ -429,12 +439,12 @@ def _process_read_file(reads: pathlib.Path):
     polyA_sites, polyA_sites_thread = filter_alignments_by_clipped_sequence(
         alignments_tee.outputs[0],
         [
-            # We look for at least 6 As softclipped at the end of a read if
+            # We look for at least `pa_length` As softclipped at the end of a read if
             # we're on the forward strand...
-            FilterPattern('A{5,}', '+', 'end'),
-            # ...and for at least 6 Ts softclipped at the start of a read if
+            FilterPattern(f'A{{{pa_length},}}', '+', 'end'),
+            # ...and for at least `pa_length` Ts softclipped at the start of a read if
             # we're on the reverse strand.
-            FilterPattern('T{5,}', '-', 'start'),
+            FilterPattern(f'T{{{pa_length},}}', '-', 'start'),
         ]
     )
     threads.append(polyA_sites_thread)
@@ -444,10 +454,10 @@ def _process_read_file(reads: pathlib.Path):
         this_logger.info('Starting spliced leader sequence finding.')
         sl_sequence, spliced_leader_thread = find_sl_sequence(
             alignments_tee.outputs[2])
-        # Only use the 9 ending nucleotides of the spliced leader sequence.
+        # Only use the `sl_length` ending nucleotides of the spliced leader sequence.
         # This is enough to accurately identify spliced reads, and leads to
         # less reads being unecessarily discarded.
-        sl_sequence = sl_sequence[-9:]
+        sl_sequence = sl_sequence[-sl_length:]
         this_logger.info(f'Found spliced leader sequence {sl_sequence}.')
         threads.append(spliced_leader_thread)
     else:

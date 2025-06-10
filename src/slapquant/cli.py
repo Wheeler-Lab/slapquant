@@ -73,6 +73,24 @@ def slapquant_main():
         default=None
     )
     parser.add_argument(
+        "--sl-length",
+        help=(
+            "Minimum length of the spliced leader sequence to look for. "
+            "(default 9bp)"
+        ),
+        type=int,
+        default=9
+    )
+    parser.add_argument(
+        "--pa-length",
+        help=(
+            "Minimum length of the polyadenylation sequence to look for. "
+            "(default 6bp)"
+        ),
+        type=int,
+        default=6
+    )
+    parser.add_argument(
         '-v',
         '--verbose',
         help="Give more info about the process.",
@@ -110,7 +128,12 @@ def slapquant_main():
     if sl_sequence is not None:
         sl_sequence = Seq(sl_sequence)
     gff = slapquant_process_reads(
-        args.reference_genome, args.rnaseq_reads, sl_sequence)
+        args.reference_genome,
+        args.rnaseq_reads,
+        sl_sequence,
+        args.sl_length,
+        args.pa_length
+    )
     gff.save('/dev/stdout')
 
 
