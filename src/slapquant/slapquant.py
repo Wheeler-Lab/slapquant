@@ -454,10 +454,6 @@ def _process_read_file(reads: pathlib.Path):
         this_logger.info('Starting spliced leader sequence finding.')
         sl_sequence, spliced_leader_thread = find_sl_sequence(
             alignments_tee.outputs[2])
-        # Only use the `sl_length` ending nucleotides of the spliced leader sequence.
-        # This is enough to accurately identify spliced reads, and leads to
-        # less reads being unecessarily discarded.
-        sl_sequence = sl_sequence[-sl_length:]
         this_logger.info(f'Found spliced leader sequence {sl_sequence}.')
         threads.append(spliced_leader_thread)
     else:
@@ -465,6 +461,11 @@ def _process_read_file(reads: pathlib.Path):
             f"Spliced leader sequence specified ('{sl_sequence}'), "
             "skipping automatic detection"
         )
+
+    # Only use the `sl_length` ending nucleotides of the spliced leader
+    # sequence. This is enough to accurately identify spliced reads, and leads\
+    # to less reads being unecessarily discarded.
+    sl_sequence = sl_sequence[-sl_length:]
 
     # Now identify softclipped reads that contain the spliced leader sequence.
     spliced_leader_sites, spliced_leader_sites_thread = (
