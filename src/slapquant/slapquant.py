@@ -271,6 +271,18 @@ def process_reads(
     # seems to be most efficient.
     n_workers = min(n_cpus // 8, len(rnaseq_reads))
     n_bwa_threads = min(n_cpus // n_workers, 8)
+
+    if sl_sequence and sl_sequence[-1] == "G":
+        logger.warning(
+            "The given SL sequence ends in a 'G'. Please make sure this is "
+            "intentional. The SL acceptor site dinucleotide usually ends in a "
+            "'G'. Due to this being part of the genomic sequence, it will be "
+            "aligned and the 'G' will not be part of the clipped sequence "
+            "which the SL sequence is matched against. Therefore, including a "
+            "trailing 'G' may lead to significantly less and / or erroneously "
+            "called SL acceptor sites!"
+        )
+
     with ProcessPoolExecutor(
         n_workers,
         initializer=_init_worker,
