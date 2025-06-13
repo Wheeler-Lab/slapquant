@@ -264,14 +264,6 @@ def process_reads(
     pa_length: int = 6,
     output_type: str = None,
 ):
-    # Index the genome
-    bwa = BWAMEM(reference_genome)
-    n_cpus = multiprocessing.cpu_count()
-    # Running the alignment in parallel with 8 cores allocated to each worker
-    # seems to be most efficient.
-    n_workers = min(n_cpus // 8, len(rnaseq_reads))
-    n_bwa_threads = min(n_cpus // n_workers, 8)
-
     if sl_sequence and sl_sequence[-1] == "G":
         logger.warning(
             "The given SL sequence ends in a 'G'. Please make sure this is "
@@ -282,6 +274,14 @@ def process_reads(
             "trailing 'G' may lead to significantly less and / or erroneously "
             "called SL acceptor sites!"
         )
+
+    # Index the genome
+    bwa = BWAMEM(reference_genome)
+    n_cpus = multiprocessing.cpu_count()
+    # Running the alignment in parallel with 8 cores allocated to each worker
+    # seems to be most efficient.
+    n_workers = min(n_cpus // 8, len(rnaseq_reads))
+    n_bwa_threads = min(n_cpus // n_workers, 8)
 
     with ProcessPoolExecutor(
         n_workers,
