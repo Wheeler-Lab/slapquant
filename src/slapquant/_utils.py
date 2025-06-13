@@ -89,7 +89,6 @@ class CandidateAlignment(NamedTuple):
     sequence_name: str
     position: int
     nr_matched: int
-    strand: Literal['+'] | Literal['-']
     match_location: Literal['start'] | Literal['end']
     clipped: str
     remainder: str

@@ -17,6 +17,7 @@ BWA_PATH = os.environ.get('BWA_PATH', 'bwa-mem2')
 
 SEQUENCE_RE = re.compile("^[A-Za-z]+$")
 
+
 class FASTAValidationError(Exception):
     def __init__(self, file: pathlib.Path):
         super().__init__(f"{file} is not a valid FASTA file.")
@@ -150,7 +151,6 @@ class BWAMEM:
                     (
                         sequence_name,
                         position, nr_matched,
-                        strand,
                         match_location,
                         clipped,
                         sequence,
@@ -159,7 +159,6 @@ class BWAMEM:
                         sequence_name,
                         int(position),
                         int(nr_matched),
-                        strand,
                         match_location,
                         clipped,
                         sequence,

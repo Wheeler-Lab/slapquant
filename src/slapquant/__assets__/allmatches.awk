@@ -24,8 +24,8 @@ BEGIN {
 
     # Skip sequences containing the sl sequence and the poly A motif.
     if ( \
-        ((is_forward)  && (($10 ~ slsequence)   || ($10 ~ /AAAAAA/))) || \
-        ((!is_forward) && (($10 ~ slsequence_r) || ($10 ~ /TTTTTT/))) \
+        (($10 ~ slsequence)   || ($10 ~ /AAAAAA/)) || \
+        (($10 ~ slsequence_r) || ($10 ~ /TTTTTT/)) \
     ) {
         next
     }
@@ -38,12 +38,7 @@ BEGIN {
         nr_matched = int(groups[2])
         if ((nr_matched > 20)) {  # We want at least 20 aligned bases
             nr_clipped = int(groups[1])  # int() ignores characters at the end, handy!
-            if (is_forward) {
-                strand = "+"
-            } else {
-                strand = "-"
-            }
-            print(rname, pos + nr_clipped, nr_matched, strand, "start", "*", "*")  # We don't need the clipped sequence in this case.
+            print(rname, pos + nr_clipped, nr_matched, "start", "*", "*")  # We don't need the clipped sequence in this case.
         }
     }
 }

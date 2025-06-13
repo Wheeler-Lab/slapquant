@@ -124,63 +124,44 @@ class FilterPattern:
     def __init__(
         self,
         pattern: str | re.Pattern[str],
-        strand: Literal['+'] | Literal['-'],
-        match_location: Literal['start'] | Literal['end']
+        match_location: Literal['start'] | Literal['end'],
+        resulting_strand: Literal['+', '-']
     ):
         # Compile the regex if it's not already done.
         if isinstance(pattern, str):
             pattern = re.compile(pattern)
         self.pattern = pattern
-        self.strand = strand
         self.match_location = match_location
+        self.resulting_strand = resulting_strand
 
         self.counter = 0
 
     def __del__(self):
         logger.debug(
-            f"Filter pattern '{self.pattern.pattern}' strand {self.strand} "
+            f"Filter pattern '{self.pattern.pattern}' "
             f"location {self.match_location} matched {self.counter} times")
 
     def __call__(self, alignment: CandidateAlignment):
-        # The SL sequence often (always?) ends in the same nucleotide (often
-        # "G") as the SL acceptor site dinucleotide. This means that this "G"
-        # is parted of the aligned portion of the sequence and is not retained
-        # in the softclipped part. To alleviate this, we match both the
-        # softclipped part only, and separately, the softclipped part plus the
-        # first nucleotide of the aligned sequence. Alternatively, we could
-        # trim a trailing "G" of the given SL sequence, but we don't know if
-        # this would hold for all organisms.
-        if alignment.strand == '+':
-            aligned_sl_nucleotide = alignment.clipped + alignment.remainder[0]
-        else:
-            aligned_sl_nucleotide = alignment.remainder[-1] + alignment.clipped
-
-        # We want the pattern to match the sequence, but also the strand and
+        # We want the pattern to match the sequence, but also the
         # the start or end of the alignment.
         match = (
             (alignment.match_location == self.match_location) and
-            (alignment.strand == self.strand) and (
-                (self.pattern.search(alignment.clipped) is not None) or
-                (self.pattern.search(aligned_sl_nucleotide) is not None)
-            )
+            (self.pattern.search(alignment.clipped) is not None)
         )
         if match:
             self.counter += 1
-        return match
+            return Site(
+                alignment.sequence_name,
+                alignment.position,
+                self.resulting_strand
+            )
+        return None
 
 
 class Site(NamedTuple):
     sequence_name: str
     position: int
-    strand: Literal['+'] | Literal['-']
-
-    @staticmethod
-    def from_alignment(alignment: CandidateAlignment):
-        return Site(
-            alignment.sequence_name,
-            alignment.position,
-            alignment.strand
-        )
+    strand: Literal['+', '-']
 
 
 def filter_alignments_by_clipped_sequence(
@@ -195,8 +176,8 @@ def filter_alignments_by_clipped_sequence(
         # of the given patterns. This not only checks the pattern, but also
         # strand and the respective end at which it was clipped.
         for pattern in patterns:
-            if pattern(alignment):
-                positions[Site.from_alignment(alignment)] += 1
+            if site := pattern(alignment):
+                positions[site] += 1
     consumer = QueueConsumer(process, softclipped)
     consumer.start()
 
@@ -443,10 +424,10 @@ def _process_read_file(reads: pathlib.Path):
         [
             # We look for at least `pa_length` As softclipped at the end of a read if
             # we're on the forward strand...
-            FilterPattern(f'A{{{pa_length},}}', '+', 'end'),
+            FilterPattern(f'A{{{pa_length},}}', 'end', '-'),
             # ...and for at least `pa_length` Ts softclipped at the start of a read if
             # we're on the reverse strand.
-            FilterPattern(f'T{{{pa_length},}}', '-', 'start'),
+            FilterPattern(f'T{{{pa_length},}}', 'start', '+'),
         ]
     )
     threads.append(polyA_sites_thread)
@@ -484,16 +465,16 @@ def _process_read_file(reads: pathlib.Path):
                 # forward strand...
                 FilterPattern(
                     f'{sl_sequence}$',
+                    'start',
                     '+',
-                    'start'
                 ),
                 # ... and for reads that have a softclipped segment at the end
                 # containing the reverse complement of the spliced leader
                 # sequence if we're on the reverse strand.
                 FilterPattern(
                     f'^{sl_sequence.reverse_complement()}',
+                    'end',
                     '-',
-                    'end'
                 ),
             ]
         )

@@ -6,7 +6,6 @@
     if (and(flags, 4)) { # unmapped flag set, sequence not aligned
         next
     }
-    is_forward = and(int($2), 16) == 0;  # SEQ reversed flag unset
 
     rname = $3
     pos = int($4)
@@ -19,12 +18,7 @@
         if ((nr_matched > 20) || (nr_clipped >= 6)) {  # We want at least 6 soft clipped bases, and 20 aligned bases
             clipped = substr(sequence, 1, nr_clipped)
             remainder = substr(sequence, nr_clipped+1)
-            if (is_forward) {
-                strand = "+"
-            } else {
-                strand = "-"
-            }
-            print(rname, pos, nr_matched, strand, "start", clipped, remainder)
+            print(rname, pos, nr_matched, "start", clipped, remainder)
         }
     }
     
@@ -37,12 +31,7 @@
         if ((nr_matched > 20) || (nr_clipped >= 6)) {
             clipped = substr(sequence, seqlen-nr_clipped+1, nr_clipped)
             remainder = substr(sequence, 1, seqlen-nr_clipped)
-            if (is_forward) {
-                strand = "+"
-            } else {
-                strand = "-"
-            }
-            print(rname, pos + nr_matched, nr_matched, strand, "end", clipped, remainder)
+            print(rname, pos + nr_matched, nr_matched, "end", clipped, remainder)
         }
     }
 }
