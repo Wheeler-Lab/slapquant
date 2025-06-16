@@ -17,9 +17,11 @@ logger = logging.getLogger()
 
 
 def slapquant_main():
+    # Predefined spliced leader sequences for some species.
+    # Listed without trailing "G" due to the way slapquant works.
     sl_sequences = {
-        "trypanosomabrucei": "AACGCTATTATTAGAACAGTTTCTGTACTATATTG",
-        "leishmaniamexicana": "AACTAACGCTATATAAGTATCAGTTTCTGTACTTTATTG",
+        "trypanosomabrucei": "AACGCTATTATTAGAACAGTTTCTGTACTATATT",
+        "leishmaniamexicana": "AACTAACGCTATATAAGTATCAGTTTCTGTACTTTATT",
     }
     species_help = ", ".join([f'"{species}"' for species in sl_sequences])
 
