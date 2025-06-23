@@ -16,15 +16,40 @@ logging.basicConfig(filename='/dev/stderr',
 logger = logging.getLogger()
 
 
-def slapquant_main():
-    # Predefined spliced leader sequences for some species.
-    # Listed without trailing "G" due to the way slapquant works.
-    sl_sequences = {
-        "trypanosomabrucei": "AACGCTATTATTAGAACAGTTTCTGTACTATATT",
-        "leishmaniamexicana": "AACTAACGCTATATAAGTATCAGTTTCTGTACTTTATT",
-    }
-    species_help = ", ".join([f'"{species}"' for species in sl_sequences])
+# Predefined spliced leader sequences for some species.
+# Listed without trailing "G" due to the way slapquant works.
+SL_SEQUENCES = {
+    "trypanosomabrucei": "AACGCTATTATTAGAACAGTTTCTGTACTATATT",
+    "leishmaniamexicana": "AACTAACGCTATATAAGTATCAGTTTCTGTACTTTATT",
+}
+SPECIES_HELP = ", ".join([f'"{species}"' for species in SL_SEQUENCES])
 
+
+def _decide_sl_sequence(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+    sl_mandatory: bool,
+):
+    sl_species: str = args.species
+    sl_sequence: str | None = args.spliced_leader_sequence
+
+    if sl_mandatory and not (sl_species or sl_sequence):
+        parser.error("Either the SL sequence or the species argument must be given.")
+    elif sl_species and sl_sequence:
+        parser.error(
+            "Please provide either a species or a spliced leader sequence, "
+            "not both."
+        )
+    elif sl_species:
+        try:
+            sl_sequence = SL_SEQUENCES[sl_species]
+        except KeyError:
+            parser.error(
+                f"Unknown species {sl_species} for spliced leader sequence.")
+    if sl_sequence is not None:
+        return Seq(sl_sequence)
+
+def slapquant_main():
     parser = argparse.ArgumentParser(
         description=(
             "Find spliced leader acceptor and polyadenylation sites by "
@@ -60,7 +85,7 @@ def slapquant_main():
             "sequence. This is not recommended.\n"
             "Spliced leader sequences are available for the following "
             " species:\n"
-            f"{species_help}"
+            f"{SPECIES_HELP}"
         ),
         default=None,
     )
@@ -113,22 +138,8 @@ def slapquant_main():
     args = parser.parse_args()
     logger.setLevel(args.loglevel)
 
-    sl_species = args.species
-    sl_sequence = args.spliced_leader_sequence
-    if sl_species is not None and sl_sequence is not None:
-        raise ValueError(
-            "Please provide either a species or a spliced leader sequence, "
-            "not both."
-        )
+    sl_sequence = _decide_sl_sequence(args, parser, False)
 
-    if sl_species is not None:
-        try:
-            sl_sequence = sl_sequences[sl_species]
-        except KeyError:
-            raise ValueError(
-                f"Unknown species {sl_species} for spliced leader sequence.")
-    if sl_sequence is not None:
-        sl_sequence = Seq(sl_sequence)
     gff = slapquant_process_reads(
         args.reference_genome,
         args.rnaseq_reads,
@@ -389,12 +400,46 @@ def slapspan_main():
         ),
     )
     parser.add_argument(
-        'spliced_leader_sequence',
+        '-s',
+        '--species',
         help=(
-            "The spliced leader sequence. This is necessary to filter out "
-            "reads from mature mRNAs."
+            "Use the predetermined spliced leader sequence for this species. "
+            "If neither this nor the spliced leader sequence is given, "
+            "slapquant will attempt to auto-detect the spliced leader "
+            "sequence. This is not recommended.\n"
+            "Spliced leader sequences are available for the following "
+            " species:\n"
+            f"{SPECIES_HELP}"
         ),
         default=None,
+    )
+    parser.add_argument(
+        '-S',
+        '--spliced-leader-sequence',
+        help=(
+            "The spliced leader sequence to look for. If neither this nor the "
+            "species are given, slapquant will attempt to auto-detect the "
+            "spliced leader sequence. This is not recommended."
+        ),
+        default=None
+    )
+    parser.add_argument(
+        "--sl-length",
+        help=(
+            "Minimum length of the spliced leader sequence to look for. "
+            "(default 9bp)"
+        ),
+        type=int,
+        default=9
+    )
+    parser.add_argument(
+        "--pa-length",
+        help=(
+            "Minimum length of the polyadenylation sequence to look for. "
+            "(default 6bp)"
+        ),
+        type=int,
+        default=6
     )
     parser.add_argument(
         '-v',
@@ -417,11 +462,13 @@ def slapspan_main():
     args = parser.parse_args()
     logger.setLevel(args.loglevel)
 
-    sl_sequence = Seq(args.spliced_leader_sequence)
+    sl_sequence: Seq = _decide_sl_sequence(args, parser, True)[:args.sl_length]
+
     df = slapspan_process_reads(
         args.slas_pas_gff,
         args.reference_genome,
         args.rnaseq_reads,
-        sl_sequence
+        sl_sequence,
+        args.pa_length,
     )
     df.to_csv('/dev/stdout')
