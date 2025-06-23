@@ -12,7 +12,7 @@ from ._utils import CandidateAlignment, QueueConsumer
 from .bwamem import BWAMEM
 
 from tqdm.auto import tqdm
-from geffa.geffa import Seq, GffFile, SLASNode, PASNode
+from geffa.geffa import Seq, GffFile, SLASNode, PASNode, CDSNode
 import pandas as pd
 
 logger = logging.getLogger('slapspan')
@@ -136,7 +136,18 @@ def process_reads(
     pas_spans = pd.Series(pas_usage).rename_axis(
         ["contig", "gene"]).rename("weighted_pas_spans")
 
-    return pd.concat([slas_spans, pas_spans], axis=1).fillna(0).astype(int)
+    combined = pd.concat([slas_spans, pas_spans], axis=1).fillna(0).astype(int)
+    coding_genes = pd.DataFrame(
+        index=pd.MultiIndex.from_tuples(
+            {
+                (seqreg.name, cds.parents[0].parents[0].attributes["ID"])
+                for seqreg in gff.sequence_regions.values()
+                for cds in seqreg.nodes_of_type(CDSNode)
+            },
+            names=["contig", "gene"]
+        )
+    )
+    return combined.join(coding_genes, how="outer").fillna(0).astype(int)
 
 
 def _init_worker(
