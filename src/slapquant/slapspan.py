@@ -12,7 +12,7 @@ from ._utils import CandidateAlignment, QueueConsumer
 from .bwamem import BWAMEM
 
 from tqdm.auto import tqdm
-from geffa.geffa import Seq, GffFile
+from geffa.geffa import Seq, GffFile, SLASNode, PASNode
 import pandas as pd
 
 logger = logging.getLogger('slapspan')
@@ -82,10 +82,11 @@ def process_reads(
                 Site(
                     node.start,
                     int(node.attributes['usage']),
-                    node.parents[0].attributes['ID'] if node.parents else None,
+                    node.parents[0].attributes['ID'],
                 )
-                for node in seqreg.node_registry.values()
-                if node.type == 'SLAS']
+                for node in seqreg.nodes_of_type(SLASNode)
+                if node.parents
+            ]
         )
         for seqreg in gff.sequence_regions.values()
     }
@@ -95,11 +96,10 @@ def process_reads(
                 Site(
                     node.start,
                     int(node.attributes['usage']),
-                    node.parents[0].attributes['ID']
-                    if node.parents else None
+                    node.parents[0].attributes['ID'],
                 )
-                for node in seqreg.node_registry.values()
-                if node.type == 'PAS'
+                for node in seqreg.nodes_of_type(PASNode)
+                if node.parents
             ]
         )
         for seqreg in gff.sequence_regions.values()
