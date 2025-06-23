@@ -102,8 +102,8 @@ def slapquant_main():
     parser.add_argument(
         "--sl-length",
         help=(
-            "Minimum length of the spliced leader sequence to look for. "
-            "(default 9bp)"
+            "Length of the spliced leader sequence (the given sequence will "
+            "be truncated to this length). (default 9bp)"
         ),
         type=int,
         default=9
