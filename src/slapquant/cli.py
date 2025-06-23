@@ -404,9 +404,6 @@ def slapspan_main():
         '--species',
         help=(
             "Use the predetermined spliced leader sequence for this species. "
-            "If neither this nor the spliced leader sequence is given, "
-            "slapquant will attempt to auto-detect the spliced leader "
-            "sequence. This is not recommended.\n"
             "Spliced leader sequences are available for the following "
             " species:\n"
             f"{SPECIES_HELP}"
@@ -417,17 +414,16 @@ def slapspan_main():
         '-S',
         '--spliced-leader-sequence',
         help=(
-            "The spliced leader sequence to look for. If neither this nor the "
-            "species are given, slapquant will attempt to auto-detect the "
-            "spliced leader sequence. This is not recommended."
+            "The spliced leader sequence, aligned reads containing this "
+            "sequence will be filtered out."
         ),
         default=None
     )
     parser.add_argument(
         "--sl-length",
         help=(
-            "Minimum length of the spliced leader sequence to look for. "
-            "(default 9bp)"
+            "Length of the spliced leader sequence (the given sequence will "
+            "be truncated to this length). (default 9bp)"
         ),
         type=int,
         default=9
@@ -435,8 +431,9 @@ def slapspan_main():
     parser.add_argument(
         "--pa-length",
         help=(
-            "Minimum length of the polyadenylation sequence to look for. "
-            "(default 6bp)"
+            "Minimum length of the polyadenylation sequence. Aligned reads "
+            "containing poly-A sequences with at least this length will be "
+            "filtered out. (default 6bp)"
         ),
         type=int,
         default=6
