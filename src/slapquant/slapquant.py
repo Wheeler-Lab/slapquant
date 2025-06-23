@@ -262,7 +262,6 @@ def process_reads(
     sl_sequence: Seq | None = None,
     sl_length: int = 9,
     pa_length: int = 6,
-    output_type: str = None,
 ):
     if sl_sequence and sl_sequence[-1] == "G":
         logger.warning(
@@ -325,11 +324,6 @@ def process_reads(
             'command line option.')
     else:
         sl_sequence = list(results.keys())[0]
-
-    # return the spliced leader sequence if requested, otherwise continue to
-    # GFF generation
-    if output_type == "sl_sequence":
-        return sl_sequence
 
     # Only use spliced leader acceptor sites from the SL sequence with the
     # highest total usage.
