@@ -32,6 +32,7 @@ def do_alignment(
         readfiles,
         queue,
         slsequence=sl_sequence,
+        polyA_sequence=polyA_sequence,
         threads=bwa_threads,
         this_logger=this_logger,
         filtering='allmatches',
@@ -71,7 +72,8 @@ def process_reads(
     slas_pas_file: pathlib.Path,
     reference_genome: pathlib.Path,
     rnaseq_reads: list[pathlib.Path],
-    sl_sequence: Seq | None = None
+    sl_sequence: Seq | None = None,
+    pa_length: int = 6,
 ):
     # Open GFF file containing SLAS and PAS features (from a previous
     # slapquant run)
@@ -105,6 +107,8 @@ def process_reads(
         for seqreg in gff.sequence_regions.values()
     }
 
+    polyA_sequence = "".join(["A"] * pa_length)
+
     # Index the genome
     bwa = BWAMEM(reference_genome)
     n_cpus = multiprocessing.cpu_count()
@@ -115,7 +119,7 @@ def process_reads(
     with ProcessPoolExecutor(
         n_workers,
         initializer=_init_worker,
-        initargs=(bwa, n_bwa_threads, sl_sequence, SLAS, PAS),
+        initargs=(bwa, n_bwa_threads, sl_sequence, polyA_sequence, SLAS, PAS),
     ) as executor:
         sites_iterator = executor.map(
             _process_read_file, rnaseq_reads, chunksize=1)
@@ -154,15 +158,17 @@ def _init_worker(
     _bwa: BWAMEM,
     _n_threads: int,
     _sl_sequence: str,
+    _polyA_sequence: str,
     _SLAS: dict[str, SiteCollection],
     _PAS: dict[str, SiteCollection]
 ):
     # This just initialises the parallel worker process with the BWAMEM object
     # and the number of threads the alignment should use.
-    global bwa, n_threads, sl_sequence, SLAS, PAS
+    global bwa, n_threads, sl_sequence, polyA_sequence, SLAS, PAS
     bwa = _bwa
     n_threads = _n_threads
     sl_sequence = _sl_sequence
+    polyA_sequence = _polyA_sequence
     SLAS = _SLAS
     PAS = _PAS
 

@@ -92,6 +92,7 @@ class BWAMEM:
         readfiles: list[pathlib.Path | str],
         queue: Queue[CandidateAlignment],
         slsequence: str | None = None,
+        polyA_sequence: str | None = None,
         threads=None,
         this_logger: logging.Logger = logger,
         filtering: Literal['softclipped'] | Literal['allmatches'] = (
@@ -101,10 +102,14 @@ class BWAMEM:
         if threads is None:
             threads = multiprocessing.cpu_count()-2
 
-        if filtering == 'allmatches' and slsequence is None:
+        if (
+            filtering == 'allmatches' and
+            slsequence is None and
+            polyA_sequence is None
+        ):
             raise ValueError(
-                "When aligning with 'allmatches', the `slsequence` argument "
-                "must be given."
+                "When aligning with 'allmatches', the `slsequence` and"
+                "`polyA_sequence` arguments must be given."
             )
 
         # This starts BWA-MEM in a subprocess. The SAM output is piped into a
@@ -135,7 +140,12 @@ class BWAMEM:
                     )
                 ]
                 if filtering == 'allmatches':
-                    awk_cmd.extend(['-v', f'slsequence={slsequence}'])
+                    awk_cmd.extend(
+                        [
+                            '-v', f'slsequence={slsequence}',
+                            '-v', f'polyAsequence={polyA_sequence}'
+                        ]
+                    )
                 this_logger.debug(
                     f'Starting gawk: "{" ".join([str(v) for v in awk_cmd])}')
                 awk = subprocess.Popen(

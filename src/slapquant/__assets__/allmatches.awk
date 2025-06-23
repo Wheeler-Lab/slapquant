@@ -9,6 +9,7 @@ BEGIN {
     c["A"] = "T"; c["C"] = "G"; c["G"] = "C"; c["T"] = "A" ; OFS="\t"
 
     slsequence_r = revcomp(slsequence);
+    polyAsequence_r = revcomp(polyAsequence);
 }
 
 /^@/ {}  # Don't care about the header
@@ -24,8 +25,8 @@ BEGIN {
 
     # Skip sequences containing the sl sequence and the poly A motif.
     if ( \
-        (($10 ~ slsequence)   || ($10 ~ /AAAAAA/)) || \
-        (($10 ~ slsequence_r) || ($10 ~ /TTTTTT/)) \
+        (($10 ~ slsequence)   || ($10 ~ polyAsequence)) || \
+        (($10 ~ slsequence_r) || ($10 ~ polyAsequence_r)) \
     ) {
         next
     }
