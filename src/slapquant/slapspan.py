@@ -1,3 +1,5 @@
+from functools import reduce
+import operator
 import pathlib
 import logging
 from queue import Queue
@@ -12,7 +14,7 @@ from ._utils import CandidateAlignment, QueueConsumer
 from .bwamem import BWAMEM
 
 from tqdm.auto import tqdm
-from geffa.geffa import Seq, GffFile, SLASNode, PASNode, CDSNode
+from geffa.geffa import Seq, GffFile, SLASNode, PASNode, CDSNode, MRNANode, GeneNode
 import pandas as pd
 
 logger = logging.getLogger('slapspan')
@@ -68,6 +70,38 @@ class SiteCollection:
         return len(self._sites)
 
 
+class Span(NamedTuple):
+    start: int
+    end: int
+    gene: str
+
+
+class SpanCollection:
+    def __init__(self, spans: list[Span]):
+        self._spans = sorted(spans, key=lambda s: s.start)
+
+    def __getitem__(self, positionrange: slice) -> list[Span]:
+        if self._spans:
+            start = bisect_left(
+                self._spans,
+                positionrange.start,
+                key=lambda s: s.start
+            )
+            if start > 0:
+                end = bisect_right(
+                    self._spans,
+                    positionrange.stop,
+                    key=lambda s: s.end
+                )
+                candidate_spans = self._spans[start-1:end+1]
+                return [span for span in candidate_spans
+                        if span.end >= positionrange.stop]
+        return []
+
+    def __len__(self):
+        return len(self._spans)
+
+
 def process_reads(
     slas_pas_file: pathlib.Path,
     reference_genome: pathlib.Path,
@@ -106,6 +140,19 @@ def process_reads(
         )
         for seqreg in gff.sequence_regions.values()
     }
+    mRNA = {
+        seqreg.name: SpanCollection(
+            [
+                Span(
+                    node.start,
+                    node.end,
+                    node.parents[0].attributes['ID'],
+                )
+                for node in seqreg.nodes_of_type(MRNANode)
+            ]
+        )
+        for seqreg in gff.sequence_regions.values()
+    }
 
     polyA_sequence = "".join(["A"] * pa_length)
 
@@ -119,28 +166,62 @@ def process_reads(
     with ProcessPoolExecutor(
         n_workers,
         initializer=_init_worker,
-        initargs=(bwa, n_bwa_threads, sl_sequence, polyA_sequence, SLAS, PAS),
+        initargs=(
+            bwa, n_bwa_threads, sl_sequence, polyA_sequence, SLAS, PAS, mRNA),
     ) as executor:
         sites_iterator = executor.map(
             _process_read_file, rnaseq_reads, chunksize=1)
         if not logger.isEnabledFor(logging.INFO):
-            spans = list(tqdm(sites_iterator, total=len(
+            results = list(tqdm(sites_iterator, total=len(
                 rnaseq_reads), desc="Read files"))
         else:
-            spans = list(sites_iterator)
+            results = list(sites_iterator)
 
-    slas_usage = Counter[tuple[str, str]]()
-    pas_usage = Counter[tuple[str, str]]()
-    for span in spans:
-        slas_usage.update(span.slas_usage)
-        pas_usage.update(span.pas_usage)
+    total: ReadFileResults = reduce(operator.add, results)
 
-    slas_spans = pd.Series(slas_usage).rename_axis(
-        ["contig", "gene"]).rename("weighted_slas_spans")
-    pas_spans = pd.Series(pas_usage).rename_axis(
-        ["contig", "gene"]).rename("weighted_pas_spans")
+    combined = pd.concat(
+        [
+            pd.Series(entry, name=label).rename_axis(["contig", "gene"])
+            for label, entry in [
+                ("SLAS_spans", total.slas_count),
+                ("usage_weighted_SLAS_spans", total.slas_usage),
+                ("PAS_spans", total.pas_count),
+                ("usage_weighted_PAS_spans", total.pas_usage),
+                ("aligned_mRNA_reads", total.mRNA_reads),
+            ]
+        ],
+        axis=1,
+    )
 
-    combined = pd.concat([slas_spans, pas_spans], axis=1).fillna(0).astype(int)
+    combined = combined.join(
+        pd.Series(
+            {
+                (seqreg.name, gene.attributes["ID"]): sum([
+                    int(node.attributes["usage"])
+                    for node in gene.children_of_type(SLASNode)
+                ])
+                for seqreg in gff.sequence_regions.values()
+                for gene in seqreg.nodes_of_type(GeneNode)
+            },
+            name="total_SLAS_usage",
+        ).rename_axis(["contig", "gene"]),
+        how="outer",
+    )
+    combined = combined.join(
+        pd.Series(
+            {
+                (seqreg.name, gene.attributes["ID"]): sum([
+                    int(node.attributes["usage"])
+                    for node in gene.children_of_type(PASNode)
+                ])
+                for seqreg in gff.sequence_regions.values()
+                for gene in seqreg.nodes_of_type(GeneNode)
+            },
+            name="total_PAS_usage",
+        ).rename_axis(["contig", "gene"]),
+        how="outer",
+    )
+
     coding_genes = pd.DataFrame(
         index=pd.MultiIndex.from_tuples(
             {
@@ -151,7 +232,19 @@ def process_reads(
             names=["contig", "gene"]
         )
     )
-    return combined.join(coding_genes, how="outer").fillna(0).astype(int)
+    return (
+        combined
+        .join(coding_genes, how="outer").fillna(0).astype(int)
+        .loc[:, [
+            "SLAS_spans",
+            "usage_weighted_SLAS_spans",
+            "total_SLAS_usage",
+            "PAS_spans",
+            "usage_weighted_PAS_spans",
+            "total_PAS_usage",
+            "aligned_mRNA_reads",
+        ]]
+    )
 
 
 def _init_worker(
@@ -160,29 +253,46 @@ def _init_worker(
     _sl_sequence: str,
     _polyA_sequence: str,
     _SLAS: dict[str, SiteCollection],
-    _PAS: dict[str, SiteCollection]
+    _PAS: dict[str, SiteCollection],
+    _mRNA: dict[str, SpanCollection],
 ):
     # This just initialises the parallel worker process with the BWAMEM object
     # and the number of threads the alignment should use.
-    global bwa, n_threads, sl_sequence, polyA_sequence, SLAS, PAS
+    global bwa, n_threads, sl_sequence, polyA_sequence, SLAS, PAS, mRNA
     bwa = _bwa
     n_threads = _n_threads
     sl_sequence = _sl_sequence
     polyA_sequence = _polyA_sequence
     SLAS = _SLAS
     PAS = _PAS
+    mRNA = _mRNA
 
 
-class ReadFileResults(NamedTuple):
-    read_file: pathlib.Path
-    slas_usage: Counter[tuple[str, str]]
-    pas_usage: Counter[tuple[str, str]]
+class ReadFileResults:
+    def __init__(self, read_file: pathlib.Path):
+        self.read_files = {read_file}
+        self.slas_count = Counter[tuple[str, str]]()
+        self.slas_usage = Counter[tuple[str, str]]()
+        self.pas_count = Counter[tuple[str, str]]()
+        self.pas_usage = Counter[tuple[str, str]]()
+        self.mRNA_reads = Counter[tuple[str, str]]()
+
+    def __add__(self: "ReadFileResults", other: "ReadFileResults"):
+        if self.read_files.intersection(other.read_files):
+            raise ValueError("Cannot combine already combined results!")
+        new = ReadFileResults(self.read_files.union(other.read_files))
+        for part in [self, other]:
+            part.slas_count.update(self.slas_count)
+            part.slas_usage.update(self.slas_usage)
+            part.pas_count.update(self.pas_count)
+            part.pas_usage.update(self.pas_usage)
+            part.mRNA_reads.update(self.mRNA_reads)
+
+        return new
 
 
-def count_spans(queue: Queue[CandidateAlignment]):
-    global SLAS, PAS
-    slas_usage = Counter[tuple[str, str]]()
-    pas_usage = Counter[tuple[str, str]]()
+def count_spans(results: ReadFileResults, queue: Queue[CandidateAlignment]):
+    global SLAS, PAS, mRNA
 
     def process(alignment: CandidateAlignment):
         region = alignment.sequence_name
@@ -192,16 +302,20 @@ def count_spans(queue: Queue[CandidateAlignment]):
             for gene, usage in (
                 SLAS[alignment.sequence_name][start:end].total_usage().items()
             ):
-                slas_usage[(region, gene)] += usage
+                results.slas_count[(region, gene)] += 1
+                results.slas_usage[(region, gene)] += usage
             for gene, usage in (
                 PAS[alignment.sequence_name][start:end].total_usage().items()
             ):
-                pas_usage[(region, gene)] += usage
+                results.pas_count[(region, gene)] += 1
+                results.pas_usage[(region, gene)] += usage
+            for mrna in mRNA[region][start:end]:
+                results.mRNA_reads[(region, mrna.gene)] += 1
 
     consumer = QueueConsumer(process, queue)
     consumer.start()
 
-    return (slas_usage, pas_usage), consumer
+    return consumer
 
 
 def _process_read_file(reads: pathlib.Path):
@@ -219,15 +333,18 @@ def _process_read_file(reads: pathlib.Path):
 
     threads: list[threading.Thread] = [alignment_thread]
 
-    (slas_usage, pas_usage), count_thread = count_spans(alignments)
+    results = ReadFileResults(reads)
+
+    count_thread = count_spans(results, alignments)
+    threads.append(count_thread)
 
     for thread in threads[::-1]:
         thread.join()
 
     this_logger.info(
-        f"Found {len(slas_usage)} spliced leader acceptor sites and "
-        f"{len(pas_usage)} polyadenylation sites spanned by nascent "
+        f"Found {len(results.slas_count)} spliced leader acceptor sites and "
+        f"{len(results.pas_count)} polyadenylation sites spanned by nascent "
         "transcripts."
     )
 
-    return ReadFileResults(reads, slas_usage, pas_usage)
+    return results

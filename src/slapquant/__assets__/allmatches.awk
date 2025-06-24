@@ -14,32 +14,36 @@ BEGIN {
 
 /^@/ {}  # Don't care about the header
 {
-    # if ($1 ~ /^@/) { # don't care about the header
-    #     next
-    # }
     flags = int($2)
     if (and(flags, 4)) { # unmapped flag set, sequence not aligned
-        next
-    }
-    is_forward = and(int($2), 16) == 0;  # SEQ reversed flag unset
-
-    # Skip sequences containing the sl sequence and the poly A motif.
-    if ( \
-        (($10 ~ slsequence)   || ($10 ~ polyAsequence)) || \
-        (($10 ~ slsequence_r) || ($10 ~ polyAsequence_r)) \
-    ) {
         next
     }
 
     rname = $3
     pos = int($4)
-    
-    # Look for alignments that are soft clipped at the start of the alignment
-    if (match($6, /([0-9]+S|)([0-9]+)M/, groups)) {
-        nr_matched = int(groups[2])
-        if ((nr_matched > 20)) {  # We want at least 20 aligned bases
-            nr_clipped = int(groups[1])  # int() ignores characters at the end, handy!
-            print(rname, pos + nr_clipped, nr_matched, "start", "*", "*")  # We don't need the clipped sequence in this case.
+    cigar = $6
+
+    if (match($6, /^([0-9]+)S([0-9]+)M/, groups_at_start)) {
+        nr_clipped = int(groups_at_start[1])
+        clipped = substr(sequence, 1, nr_clipped)
+        if ((clipped ~ slsequence) || (clipped ~ polyAsequence_r)) {
+            next
         }
     }
+    if (match($6, /([0-9]+)M([0-9]+)S$/, groups_at_end)) {
+        nr_clipped = int(groups_at_end[2])
+        seqlen = length(sequence)
+        clipped = substr(sequence, seqlen-nr_clipped+1, nr_clipped)
+        if ((clipped ~ slsequence_r) || (clipped ~ polyAsequence)) {
+            next
+        }
+    }
+
+    gsub(/[0-9]+[ISHP]/, "", cigar)
+    patsplit(cigar, advances, /[0-9]+/)
+    reference_consumed = 0
+    for (i in advances) {
+        reference_consumed += advances[i]
+    }
+    print(rname, pos, reference_consumed, "*", "*", "*")
 }
