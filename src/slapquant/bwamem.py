@@ -158,21 +158,7 @@ class BWAMEM:
                 this_logger.debug(
                     'Processing and queuing incoming aligned reads.')
                 for line in iter(awk.stdout.readline, ''):
-                    (
-                        sequence_name,
-                        position, nr_matched,
-                        match_location,
-                        clipped,
-                        sequence,
-                    ) = line.split()
-                    queue.put(CandidateAlignment(
-                        sequence_name,
-                        int(position),
-                        int(nr_matched),
-                        match_location,
-                        clipped,
-                        sequence,
-                    ))
+                    queue.put(CandidateAlignment.from_line(line))
                 awk.stdout.close()
                 awk_return_code = awk.wait()
                 if awk_return_code:

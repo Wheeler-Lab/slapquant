@@ -89,6 +89,25 @@ class CandidateAlignment(NamedTuple):
     sequence_name: str
     position: int
     nr_matched: int
-    match_location: Literal['start'] | Literal['end']
+    match_location: Literal['start', 'end', '*']
     clipped: str
     remainder: str
+
+    @staticmethod
+    def from_line(line: str):
+        (
+            sequence_name,
+            position_str,
+            nr_matched_str,
+            match_location,
+            clipped,
+            sequence,
+        ) = line.split()
+        return CandidateAlignment(
+            sequence_name,
+            int(position_str),
+            int(nr_matched_str),
+            match_location,
+            clipped,
+            sequence,
+        )
