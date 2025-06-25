@@ -1,9 +1,4 @@
-function revcomp(arg) {
-    o = ""
-    for(i = length(arg); i > 0; i--)
-        o = o c[substr(arg, i, 1)]
-    return(o)
-}
+@include "util.awk"
 
 BEGIN {
     c["A"] = "T"; c["C"] = "G"; c["G"] = "C"; c["T"] = "A" ; OFS="\t"
@@ -39,11 +34,5 @@ BEGIN {
         }
     }
 
-    gsub(/[0-9]+[ISHP]/, "", cigar)
-    patsplit(cigar, advances, /[0-9]+/)
-    reference_consumed = 0
-    for (i in advances) {
-        reference_consumed += advances[i]
-    }
-    print(rname, pos, reference_consumed, "*", "*", "*")
+    print(rname, pos, reference_consumed(cigar), "*", "*", "*")
 }

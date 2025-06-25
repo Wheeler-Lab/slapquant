@@ -17,6 +17,8 @@ BWA_PATH = os.environ.get('BWA_PATH', 'bwa-mem2')
 
 SEQUENCE_RE = re.compile("^[A-Za-z]+$")
 
+ASSETS_PATH = pathlib.Path(__file__).parent / "__assets__/"
+
 
 class FASTAValidationError(Exception):
     def __init__(self, file: pathlib.Path):
@@ -134,10 +136,7 @@ class BWAMEM:
                 )
                 awk_cmd = [
                     'gawk', "-f",
-                    (
-                        pathlib.Path(__file__).parent /
-                        f"__assets__/{filtering}.awk"
-                    )
+                    ASSETS_PATH / f"{filtering}.awk"
                 ]
                 if filtering == 'allmatches':
                     awk_cmd.extend(
@@ -148,11 +147,15 @@ class BWAMEM:
                     )
                 this_logger.debug(
                     f'Starting gawk: "{" ".join([str(v) for v in awk_cmd])}')
+
+                awk_env = os.environ.copy()
+                awk_env["AWKPATH"] = str(ASSETS_PATH)
                 awk = subprocess.Popen(
                     awk_cmd,
                     text=True,
                     stdin=bwa.stdout,
-                    stdout=subprocess.PIPE
+                    stdout=subprocess.PIPE,
+                    env=awk_env,
                 )
 
                 this_logger.debug(
