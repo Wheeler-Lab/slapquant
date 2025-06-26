@@ -1,4 +1,13 @@
 import geffa
+from geffa.geffa import (
+    Node,
+    SLASNode,
+    PASNode,
+    GeneNode,
+    MRNANode,
+    FivePrimeUTRNode,
+    ThreePrimeUTRNode
+)
 
 import logging
 import __main__
@@ -15,11 +24,11 @@ def check_or_strip_nodes(
     strip: bool
 ):
     if strip:
-        def node_func(node: geffa.geffa.Node) -> None:
+        def node_func(node: Node) -> None:
             node.delete()
         logger.info("Stripping existing SLAS / PAS sites.")
     else:
-        def node_func(node: geffa.geffa.Node) -> None:
+        def node_func(node: Node) -> None:
             raise ValueError(
                 "Existing sites found, cannot proceed. Please use "
                 "'--strip-existing' to remove."
@@ -53,32 +62,26 @@ def assign_sites(
             sitesreg = slas_pas.sequence_regions[seqreg.name]
         except KeyError:
             continue
-        for SLAS in sitesreg.nodes_of_type(geffa.geffa.SLASNode):
-            geffa.geffa.SLASNode(
-                SLAS.line_nr,
-                seqreg,
-                SLAS.source,
-                'SLAS',
-                SLAS.start,
-                SLAS.end,
-                '.',
-                SLAS.strand,
-                '.',
-                f"ID={SLAS.attributes['ID']};usage={SLAS.attributes['usage']}",
-            )
-        for PAS in sitesreg.nodes_of_type(geffa.geffa.PASNode):
-            geffa.geffa.PASNode(
-                PAS.line_nr,
-                seqreg,
-                PAS.source,
-                'PAS',
-                PAS.start,
-                PAS.end,
-                '.',
-                PAS.strand,
-                '.',
-                f"ID={PAS.attributes['ID']};usage={PAS.attributes['usage']}"
-            )
+        for min_usage, node_type in [
+            (min_slas_usage, SLASNode),
+            (min_pas_usage, PASNode)
+        ]:
+            node: SLASNode | PASNode
+            for node in sitesreg.nodes_of_type(node_type):
+                if int(node.attributes["usage"]) >= min_usage:
+                    node_type(
+                        node.line_nr,
+                        seqreg,
+                        node.source,
+                        node.type,
+                        node.start,
+                        node.end,
+                        '.',
+                        node.strand,
+                        '.',
+                        f"ID={node.attributes['ID']};"
+                        f"usage={node.attributes['usage']}",
+                    )
         processed_regions.add(seqreg.name)
     sites_only_regions = set(
         slas_pas.sequence_regions).difference(processed_regions)
@@ -90,25 +93,19 @@ def assign_sites(
         )
 
     for seqreg in gene_models.sequence_regions.values():
-        SLAS_to_search = [
-            SLAS for SLAS in seqreg.nodes_of_type(geffa.geffa.SLASNode)
-            if int(SLAS.attributes["usage"]) >= min_slas_usage
-        ]
-        PAS_to_search = [
-            PAS for PAS in seqreg.nodes_of_type(geffa.geffa.PASNode)
-            if int(PAS.attributes["usage"]) >= min_pas_usage
-        ]
+        SLAS_to_search = seqreg.nodes_of_type(SLASNode)
+        PAS_to_search = seqreg.nodes_of_type(PASNode)
         CDS_to_search_SLAS = [
             mRNA.CDS_children()[0]
-            for mRNA in seqreg.nodes_of_type(geffa.geffa.MRNANode)
+            for mRNA in seqreg.nodes_of_type(MRNANode)
         ]
         CDS_to_search_PAS = [
             mRNA.CDS_children()[-1]
-            for mRNA in seqreg.nodes_of_type(geffa.geffa.MRNANode)
+            for mRNA in seqreg.nodes_of_type(MRNANode)
         ]
         nodes_SLAS = PAS_to_search + CDS_to_search_SLAS
         nodes_PAS = SLAS_to_search + CDS_to_search_PAS
-        for slas in seqreg.nodes_of_type(geffa.geffa.SLASNode):
+        for slas in seqreg.nodes_of_type(SLASNode):
             nodes_to_search = sorted(
                 (
                     feature for feature in nodes_SLAS
@@ -143,7 +140,7 @@ def assign_sites(
             else:
                 slas.add_parent(closest_node.parents[0].parents[0])
 
-        for pas in seqreg.nodes_of_type(geffa.geffa.PASNode):
+        for pas in seqreg.nodes_of_type(PASNode):
             nodes_to_search = sorted(
                 (
                     feature for feature in nodes_PAS
