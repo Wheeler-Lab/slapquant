@@ -189,12 +189,8 @@ def identify_UTRs(
         gff, ["five_prime_UTR", "three_prime_UTR"], strip_existing)
 
     for seqreg in gff.sequence_regions.values():
-        for gene in [
-            feature
-            for feature in seqreg.node_registry.values()
-            if feature.type == 'gene'
-        ]:
-            mRNAs = gene.children_of_type(geffa.geffa.MRNANode)
+        for gene in seqreg.nodes_of_type(GeneNode):
+            mRNAs = gene.children_of_type(MRNANode)
             if len(mRNAs) == 0:
                 logger.info(
                     f"{gene.attributes['ID']} is not a protein coding gene, "
@@ -207,11 +203,11 @@ def identify_UTRs(
                     "UTR assignment isn't implemented yet."
                 )
                 continue
-            mRNA: geffa.geffa.MRNANode = mRNAs[0]
+            mRNA: MRNANode = mRNAs[0]
             CDSs = mRNA.CDS_children()
 
-            slas_sites: list[geffa.geffa.SLASNode] = []
-            for slas in gene.children_of_type(geffa.geffa.SLASNode):
+            slas_sites: list[SLASNode] = []
+            for slas in gene.children_of_type(SLASNode):
                 if (
                     (mRNA.strand == '+' and CDSs[0].start < slas.end) or
                     (mRNA.strand == '-' and CDSs[0].end > slas.start)
@@ -219,16 +215,11 @@ def identify_UTRs(
                     logger.warning(
                         f"SLAS {slas.attributes['ID']} was assigned wrongly, "
                         "it is behind the start of the CDS. Skipping.")
-                elif (
-                    (mRNA.strand == '+' and
-                     (CDSs[0].start - slas.end <= max_5utr_length)) or
-                    (mRNA.strand == '-' and
-                     (slas.start - CDSs[0].end <= max_5utr_length))
-                ):
+                else:
                     slas_sites.append(slas)
 
-            pas_sites: list[geffa.geffa.PASNode] = []
-            for pas in gene.children_of_type(geffa.geffa.PASNode):
+            pas_sites: list[PASNode] = []
+            for pas in gene.children_of_type(PASNode):
                 if (
                     (mRNA.strand == '+' and CDSs[-1].end > pas.start) or
                     (mRNA.strand == '-' and CDSs[-1].start < pas.end)
@@ -236,12 +227,7 @@ def identify_UTRs(
                     logger.warning(
                         f"PAS {pas.attributes['ID']} was assigned wrongly, "
                         "it comes before the start of the CDS. Skipping.")
-                elif (
-                    (mRNA.strand == '+' and
-                     (pas.start - CDSs[-1].end <= max_3utr_length)) or
-                    (mRNA.strand == '-' and
-                     (CDSs[-1].start - pas.end <= max_3utr_length))
-                ):
+                else:
                     pas_sites.append(pas)
 
             if slas_sites:
@@ -259,8 +245,12 @@ def identify_UTRs(
                     logger.warning(
                         f"Could not assign 5'UTR to {mRNA.attributes['ID']}, "
                         "the UTR would have been zero length.")
+                elif utr_length > max_5utr_length:
+                    logger.info(
+                        f"Could not assign 5'UTR to {mRNA.attributes['ID']}, "
+                        "the UTR would be longer than the allowed maximum.")
                 else:
-                    geffa.geffa.FivePrimeUTRNode(
+                    FivePrimeUTRNode(
                         -1,
                         seqreg,
                         'slaputrs',
@@ -294,20 +284,26 @@ def identify_UTRs(
                 else:
                     end = cds.start - 1
                     start = position
-                geffa.geffa.ThreePrimeUTRNode(
-                    -1,
-                    seqreg,
-                    'slaputrs',
-                    'three_prime_UTR',
-                    start,
-                    end,
-                    '.',
-                    mRNA.strand,
-                    '.',
-                    (
-                        f'ID={mRNA.attributes["ID"]}_UTR3;'
-                        f'Parent={mRNA.attributes["ID"]}'
-                    ),
-                )
+                utr_length = end - start + 1
+                if utr_length > max_3utr_length:
+                    logger.info(
+                        f"Could not assign 3'UTR to {mRNA.attributes['ID']}, "
+                        "the UTR would be longer than the allowed maximum.")
+                else:
+                    ThreePrimeUTRNode(
+                        -1,
+                        seqreg,
+                        'slaputrs',
+                        'three_prime_UTR',
+                        start,
+                        end,
+                        '.',
+                        mRNA.strand,
+                        '.',
+                        (
+                            f'ID={mRNA.attributes["ID"]}_UTR3;'
+                            f'Parent={mRNA.attributes["ID"]}'
+                        ),
+                    )
 
     return gff
