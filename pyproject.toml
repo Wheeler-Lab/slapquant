@@ -5,6 +5,8 @@ description = "Find splice leader acceptor sites and polyadenylation sites from 
 dependencies = [
     "geffa @ git+https://github.com/ulido/geffa.git@0.1.0",
     "tqdm",
+    "numpy",
+    "pandas",
 ]
 requires-python = ">= 3.10"
 
