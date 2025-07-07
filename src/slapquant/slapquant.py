@@ -430,10 +430,10 @@ def _process_read_file(reads: pathlib.Path):
         [
             # We look for at least `pa_length` As softclipped at the end of a read if
             # we're on the forward strand...
-            FilterPattern(f'A{{{pa_length},}}', 'end', '-'),
+            FilterPattern(f'A{{{pa_length},}}', 'end', '+'),
             # ...and for at least `pa_length` Ts softclipped at the start of a read if
             # we're on the reverse strand.
-            FilterPattern(f'T{{{pa_length},}}', 'start', '+'),
+            FilterPattern(f'T{{{pa_length},}}', 'start', '-'),
         ]
     )
     threads.append(polyA_sites_thread)
