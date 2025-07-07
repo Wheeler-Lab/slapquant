@@ -255,20 +255,20 @@ def slapassign_main():
         help=(
             "When assigning sites to genes, if SLAS sites are between a "
             "CDS and a site to be assigned, only consider those with a "
-            "minimum usage count. (default 2)"
+            "minimum usage count. (default 4)"
         ),
         type=int,
-        default=2,
+        default=4,
     )
     parser.add_argument(
         '--min-pas-usage', '-n',
         help=(
             "When assigning sites to genes, if PAS sites are between a "
             "CDS and a site to be assigned, only consider those with a "
-            "minimum usage count. (default 1)"
+            "minimum usage count. (default 4)"
         ),
         type=int,
-        default=1,
+        default=4,
     )
     parser.add_argument(
         '-v',
