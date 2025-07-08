@@ -208,6 +208,7 @@ def slapidentify_main():
     sl_sequence = slapidentify_process_reads(
         args.reference_genome,
         args.rnaseq_reads,
+        args.sl_length,
     )
     print(sl_sequence, file=open('/dev/stdout', 'w'))
 
