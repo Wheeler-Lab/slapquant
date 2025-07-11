@@ -46,7 +46,7 @@ def assign_sites(
     gene_models_gff: pathlib.Path,
     slas_pas_sites_gff: pathlib.Path,
     strip_existing: bool,
-    min_slas_usage: int = 4,
+    min_slas_usage: int = 2,
     min_pas_usage: int = 2,
 ):
     gene_models = geffa.GffFile(
