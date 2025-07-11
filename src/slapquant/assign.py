@@ -48,6 +48,7 @@ def assign_sites(
     strip_existing: bool,
     min_slas_usage: int = 2,
     min_pas_usage: int = 2,
+    min_usage_factor: float = 0.5
 ):
     gene_models = geffa.GffFile(
         gene_models_gff, ignore_unknown_feature_types=True)
@@ -115,14 +116,16 @@ def assign_sites(
                             (feature.strand == '+') and
                             (feature.end > slas.end) and
                             (feature.type == 'CDS' or feature.type == 'PAS' and
-                                int(feature.attributes['usage']) < int(slas.attributes['usage']))
+                                int(feature.attributes['usage']) <
+                                int(slas.attributes['usage']) * min_usage_factor)
                         ) or
                         (
                             (slas.strand == '-') and
                             (feature.strand == '-') and
                             (feature.start < slas.start) and
                             (feature.type == 'CDS' or feature.type == 'PAS' and
-                                int(feature.attributes['usage']) < int(slas.attributes['usage']))
+                                int(feature.attributes['usage']) <
+                                int(slas.attributes['usage']) * min_usage_factor)
                         )
                     )
                 ),
@@ -154,13 +157,15 @@ def assign_sites(
                             (feature.strand == '+') and
                             (feature.start < pas.start) and
                             (feature.type == 'CDS' or feature.type == 'SLAS' and
-                                int(feature.attributes['usage']) < int(pas.attributes['usage']))
+                                int(feature.attributes['usage']) <
+                                int(pas.attributes['usage']) * min_usage_factor)
                         ) or (
                             (pas.strand == '-') and
                             (feature.strand == '-') and
                             (feature.end > pas.end) and
                             (feature.type == 'CDS' or feature.type == 'SLAS' and
-                                int(feature.attributes['usage']) < int(pas.attributes['usage']))
+                                int(feature.attributes['usage']) <
+                                int(pas.attributes['usage']) * min_usage_factor)
                         )
                     )
                 ),
