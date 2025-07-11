@@ -113,19 +113,29 @@ def assign_sites(
                     if (
                         (
                             (slas.strand == '+') and
+                            (feature.type == 'PAS') and
                             (feature.strand == '+') and
                             (feature.end > slas.end) and
-                            (feature.type == 'CDS' or feature.type == 'PAS' and
-                                int(feature.attributes['usage']) >
+                            (int(feature.attributes['usage']) >
                                 int(slas.attributes['usage']) * min_usage_factor)
                         ) or
                         (
                             (slas.strand == '-') and
+                            (feature.type == 'PAS') and
                             (feature.strand == '-') and
                             (feature.start < slas.start) and
-                            (feature.type == 'CDS' or feature.type == 'PAS' and
-                                int(feature.attributes['usage']) >
+                            (int(feature.attributes['usage']) >
                                 int(slas.attributes['usage']) * min_usage_factor)
+                        ) or
+                        (
+                            (feature.type == 'CDS') and
+                            (feature.strand == '+') and
+                            (feature.start > slas.end)
+                        ) or
+                        (
+                            (feature.type == 'CDS') and
+                            (feature.strand == '-') and
+                            (feature.end < slas.start)
                         )
                     )
                 ),
@@ -144,6 +154,11 @@ def assign_sites(
                 logger.info(
                     f"Closest node to {slas.attributes['ID']} is a PAS, no "
                     "CDS could be assigned.")
+            elif closest_node.strand != slas.strand:
+                logger.info(
+                    f"Closest node to {slas.attributes['ID']} is on the "
+                    "opposite strand, no CDS could be assigned."
+                )
             else:
                 slas.add_parent(closest_node.parents[0].parents[0])
 
@@ -154,18 +169,26 @@ def assign_sites(
                     if (
                         (
                             (pas.strand == '+') and
+                            (feature.type == 'SLAS') and
                             (feature.strand == '+') and
                             (feature.start < pas.start) and
-                            (feature.type == 'CDS' or feature.type == 'SLAS' and
-                                int(feature.attributes['usage']) >
+                            (int(feature.attributes['usage']) >
                                 int(pas.attributes['usage']) * min_usage_factor)
                         ) or (
                             (pas.strand == '-') and
+                            (feature.type == 'SLAS') and
                             (feature.strand == '-') and
                             (feature.end > pas.end) and
-                            (feature.type == 'CDS' or feature.type == 'SLAS' and
-                                int(feature.attributes['usage']) >
+                            (int(feature.attributes['usage']) >
                                 int(pas.attributes['usage']) * min_usage_factor)
+                        ) or (
+                            (feature.type == 'CDS') and
+                            (feature.strand == '+') and
+                            (feature.end < pas.start)
+                        ) or (
+                            (feature.type == 'CDS') and
+                            (feature.strand == '-') and
+                            (feature.start > pas.end)
                         )
                     )
                 ),
@@ -184,6 +207,11 @@ def assign_sites(
                 logger.info(
                     f"Closest node to {pas.attributes['ID']} is a SLAS, no "
                     "CDS could be assigned."
+                )
+            elif closest_node.strand != pas.strand:
+                logger.info(
+                    f"Closest node to {pas.attributes['ID']} is on the "
+                    "opposite strand, no CDS could be assigned."
                 )
             else:
                 pas.add_parent(closest_node.parents[0].parents[0])
