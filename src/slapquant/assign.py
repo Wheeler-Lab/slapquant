@@ -113,12 +113,12 @@ def assign_sites(
                         (
                             (slas.strand == '+') and
                             (feature.strand == '+') and
-                            (feature.start > slas.end)
+                            (feature.end > slas.end)
                         ) or
                         (
                             (slas.strand == '-') and
                             (feature.strand == '-') and
-                            (feature.end < slas.start)
+                            (feature.start < slas.start)
                         )
                     )
                 ),
@@ -148,11 +148,11 @@ def assign_sites(
                         (
                             (pas.strand == '+') and
                             (feature.strand == '+') and
-                            (feature.end < pas.start)
+                            (feature.start < pas.start)
                         ) or (
                             (pas.strand == '-') and
                             (feature.strand == '-') and
-                            (feature.start > pas.end)
+                            (feature.end > pas.end)
                         )
                     )
                 ),
@@ -212,7 +212,7 @@ def identify_UTRs(
                     (mRNA.strand == '+' and CDSs[0].start < slas.end) or
                     (mRNA.strand == '-' and CDSs[0].end > slas.start)
                 ):
-                    logger.warning(
+                    logger.debug(
                         f"SLAS {slas.attributes['ID']} was assigned wrongly, "
                         "it is behind the start of the CDS. Skipping.")
                 else:
@@ -224,7 +224,7 @@ def identify_UTRs(
                     (mRNA.strand == '+' and CDSs[-1].end > pas.start) or
                     (mRNA.strand == '-' and CDSs[-1].start < pas.end)
                 ):
-                    logger.warning(
+                    logger.debug(
                         f"PAS {pas.attributes['ID']} was assigned wrongly, "
                         "it comes before the start of the CDS. Skipping.")
                 else:
