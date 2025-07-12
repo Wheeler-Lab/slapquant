@@ -285,7 +285,11 @@ def identify_UTRs(
                     end = cds.start - 1
                     start = position
                 utr_length = end - start + 1
-                if utr_length > max_3utr_length:
+                if utr_length < 1:
+                    logger.warning(
+                        f"Could not assign 3'UTR to {mRNA.attributes['ID']}, "
+                        "the UTR would have been zero length.")
+                elif utr_length > max_3utr_length:
                     logger.info(
                         f"Could not assign 3'UTR to {mRNA.attributes['ID']}, "
                         "the UTR would be longer than the allowed maximum.")
