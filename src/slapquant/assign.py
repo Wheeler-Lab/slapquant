@@ -189,11 +189,11 @@ def identify_UTRs(
 ):
     if fix_shorten_orfs and genome_fasta is None:
         raise ValueError(
-            "If --fix-shorten-orfs is set, you must provide a genome FASTA file."
+            "If fix_shorten_orfs is True, you must provide the path of a genome FASTA file."
         )
     if fix_lengthen_orfs and genome_fasta is None:
         raise ValueError(
-            "If --fix-lengthen-orfs is set, you must provide a genome FASTA file."
+            "If fix_lengthen_orfs is True, you must provide the path of a genome FASTA file."
         )
     
     gff = geffa.GffFile(annotations_gff, 
