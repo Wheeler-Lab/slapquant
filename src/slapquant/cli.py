@@ -275,10 +275,10 @@ def slapassign_main():
             "When assigning sites to genes, block assignment of a SLAS "
             "to a CDS if an intervening PAS site has a usage count "
             "above this factor times the usage of the SLAS site to be "
-            "assigned. And, vice versa for PAS sites. (default 0.5)"
+            "assigned. And, vice versa for PAS sites. (default 2.0)"
         ),
         type=float,
-        default=0.5,
+        default=2.0,
     )
     parser.add_argument(
         '-v',

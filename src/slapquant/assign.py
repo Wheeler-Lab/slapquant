@@ -48,7 +48,7 @@ def assign_sites(
     strip_existing: bool,
     min_slas_usage: int = 2,
     min_pas_usage: int = 2,
-    min_usage_factor: float = 0.5
+    min_usage_factor: float = 2.0
 ):
     gene_models = geffa.GffFile(
         gene_models_gff, ignore_unknown_feature_types=True)
