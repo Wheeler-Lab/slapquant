@@ -315,6 +315,16 @@ def slaputrs_main():
         ),
     )
     parser.add_argument(
+        '--genome-fasta',
+        help=(
+            "The path to a FASTA file containing the genome sequence for the "
+            "genes in the GFF file. This is required when adjusting ORFs "
+            "based on the SLAS and PAS sites identified."
+        ),
+        type=pathlib.Path,
+        default=None
+    )
+    parser.add_argument(
         '--strip-existing',
         help=(
             "Strip existing UTRs from the gene models GFF file. "
@@ -343,6 +353,29 @@ def slaputrs_main():
         default=5000,
     )
     parser.add_argument(
+        '--fix-shorten-orfs',
+        help=(
+            "Allow fixing CDSs by shortening, selecting the first "
+            "in frame SLAS-downstream start codon to prevent CDS "
+            "overlap with the consensus SLAS"
+        ),
+        action="store_const",
+        dest="fix_shorten_orfs",
+        const=True,
+        default=False,
+    )
+    parser.add_argument(
+        '--fix-lengthen-orfs',
+        help=(
+            "Allow fixing CDSs by lengthening, selecting the closest "
+            "in-frame start codon downstream of the consensus SLAS"
+        ),
+        action="store_const",
+        dest="fix_lengthen_orfs",
+        const=True,
+        default=False,
+    )
+    parser.add_argument(
         '-v',
         '--verbose',
         help="Give more info about the process.",
@@ -360,6 +393,9 @@ def slaputrs_main():
         args.strip_existing,
         max_5utr_length=args.max_5UTR_length,
         max_3utr_length=args.max_3UTR_length,
+        genome_fasta=args.genome_fasta,
+        fix_shorten_orfs=args.fix_shorten_orfs,
+        fix_lengthen_orfs=args.fix_lengthen_orfs,
     )
     gff.save('/dev/stdout')
 

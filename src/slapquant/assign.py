@@ -183,10 +183,27 @@ def identify_UTRs(
     strip_existing: bool,
     max_5utr_length: int = 5000,
     max_3utr_length: int = 5000,
+    genome_fasta: pathlib.Path | None = None,
+    fix_shorten_orfs: bool = False,
+    fix_lengthen_orfs: bool = False,
 ):
-    gff = geffa.GffFile(annotations_gff, ignore_unknown_feature_types=True)
+    if fix_shorten_orfs and genome_fasta is None:
+        raise ValueError(
+            "If fix_shorten_orfs is True, you must provide the path of a genome FASTA file."
+        )
+    if fix_lengthen_orfs and genome_fasta is None:
+        raise ValueError(
+            "If fix_lengthen_orfs is True, you must provide the path of a genome FASTA file."
+        )
+    
+    gff = geffa.GffFile(annotations_gff, 
+        ignore_unknown_feature_types=True,
+        fasta_file=genome_fasta)
     check_or_strip_nodes(
         gff, ["five_prime_UTR", "three_prime_UTR"], strip_existing)
+    
+    cds_shortened=0
+    cds_lengthened=0 
 
     for seqreg in gff.sequence_regions.values():
         for gene in seqreg.nodes_of_type(GeneNode):
@@ -208,32 +225,42 @@ def identify_UTRs(
 
             slas_sites: list[SLASNode] = []
             for slas in gene.children_of_type(SLASNode):
-                if (
-                    (mRNA.strand == '+' and CDSs[0].start < slas.end) or
-                    (mRNA.strand == '-' and CDSs[0].end > slas.start)
-                ):
-                    logger.debug(
-                        f"SLAS {slas.attributes['ID']} was assigned wrongly, "
-                        "it is behind the start of the CDS. Skipping.")
-                else:
                     slas_sites.append(slas)
 
             pas_sites: list[PASNode] = []
             for pas in gene.children_of_type(PASNode):
-                if (
-                    (mRNA.strand == '+' and CDSs[-1].end > pas.start) or
-                    (mRNA.strand == '-' and CDSs[-1].start < pas.end)
-                ):
-                    logger.debug(
-                        f"PAS {pas.attributes['ID']} was assigned wrongly, "
-                        "it comes before the start of the CDS. Skipping.")
-                else:
                     pas_sites.append(pas)
 
             if slas_sites:
                 slas = sorted(slas_sites, key=lambda x: -
                               int(x.attributes['usage']))[0]
                 cds = CDSs[0]
+
+                if mRNA.strand == '+':
+                    slas_offset = (cds.start - 1) - (slas.end + 2)
+                else:
+                    slas_offset = (slas.start - 1) - (cds.end + 1)
+                if slas_offset < 0 and fix_shorten_orfs:
+                    best_start = 0
+                    for i in range(3, len(cds.sequence), 3):
+                        if i > slas_offset and cds.sequence[i:i+3] == "ATG":
+                            best_start = i
+                            break
+                    if best_start > 0:
+                        cds_shortened += 1
+                        logger.debug(
+                            f"Start codon for {mRNA.attributes['ID']} updated "
+                            f"to codon number {best_start // 3}")
+                        if mRNA.strand == '+':
+                            cds.start = cds.start + best_start
+                        else:
+                            cds.end = cds.end - best_start
+                    else:
+                        logger.warning(
+                            f"SLAS for {mRNA.attributes['ID']} is within the CDS, "
+                            "and an suitable alternative start codon could not "
+                            "be found.")
+                
                 if mRNA.strand == '+':
                     start = slas.end + 2
                     end = cds.start - 1
@@ -250,7 +277,7 @@ def identify_UTRs(
                         f"Could not assign 5'UTR to {mRNA.attributes['ID']}, "
                         "the UTR would be longer than the allowed maximum.")
                 else:
-                    FivePrimeUTRNode(
+                    utr = FivePrimeUTRNode(
                         -1,
                         seqreg,
                         'slaputrs',
@@ -265,6 +292,27 @@ def identify_UTRs(
                             f'Parent={mRNA.attributes["ID"]}'
                         ),
                     )
+                    if fix_lengthen_orfs:
+                        best_offset = -1
+                        for i in range(len(utr.sequence), 0, -3):
+                            if utr.sequence[i-3:i] in ["TAA", "TGA", "TAG"]:
+                                best_offset = -1
+                                break
+                            if utr.sequence[i-3:i] == "ATG":
+                                best_offset = i - 3
+                        if best_offset > -1:
+                            best_offset = len(utr.sequence) - best_offset
+                            cds_lengthened += 1
+                            logger.debug(
+                                f"Start codon for {mRNA.attributes['ID']} updated to "
+                                f"codon number {-best_offset // 3}")
+                            if mRNA.strand == '+':
+                                cds.start = cds.start - best_offset
+                                utr.end = utr.end - best_offset
+                            else:
+                                cds.end = cds.end + best_offset
+                                utr.start = utr.start + best_offset
+            
             if pas_sites:
                 positions = [
                     pas.start
@@ -309,5 +357,12 @@ def identify_UTRs(
                             f'Parent={mRNA.attributes["ID"]}'
                         ),
                     )
+
+    if fix_shorten_orfs and fix_lengthen_orfs:
+        logger.warning(f"{cds_shortened} CDSs shortened and {cds_lengthened} CDSs lengthened") 
+    elif fix_shorten_orfs:
+        logger.warning("f{cds_shortened} CDSs shortened")
+    elif fix_lengthen_orfs:
+        logger.warning(f"{cds_lengthened} CDSs lengthened")
 
     return gff
