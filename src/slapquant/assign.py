@@ -201,6 +201,9 @@ def identify_UTRs(
         fasta_file=genome_fasta)
     check_or_strip_nodes(
         gff, ["five_prime_UTR", "three_prime_UTR"], strip_existing)
+    
+    cds_shortened=0
+    cds_lengthened=0 
 
     for seqreg in gff.sequence_regions.values():
         for gene in seqreg.nodes_of_type(GeneNode):
@@ -244,6 +247,7 @@ def identify_UTRs(
                             best_start = i
                             break
                     if best_start > 0:
+                        cds_shortened += 1
                         logger.debug(
                             f"Start codon for {mRNA.attributes['ID']} updated "
                             f"to codon number {best_start // 3}")
@@ -298,6 +302,7 @@ def identify_UTRs(
                                 best_offset = i - 3
                         if best_offset > -1:
                             best_offset = len(utr.sequence) - best_offset
+                            cds_lengthened += 1
                             logger.debug(
                                 f"Start codon for {mRNA.attributes['ID']} updated to "
                                 f"codon number {-best_offset // 3}")
@@ -352,5 +357,12 @@ def identify_UTRs(
                             f'Parent={mRNA.attributes["ID"]}'
                         ),
                     )
+
+    if fix_shorten_orfs and fix_lengthen_orfs:
+        logger.warning(f"{cds_shortened} CDSs shortened and {cds_lengthened} CDSs lengthened") 
+    elif fix_shorten_orfs:
+        logger.warning("f{cds_shortened} CDSs shortened")
+    elif fix_lengthen_orfs:
+        logger.warning(f"{cds_lengthened} CDSs lengthened")
 
     return gff
