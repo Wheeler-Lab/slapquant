@@ -185,10 +185,15 @@ def identify_UTRs(
     max_3utr_length: int = 5000,
     genome_fasta: pathlib.Path | None = None,
     fix_shorten_orfs: bool = False,
+    fix_lengthen_orfs: bool = False,
 ):
     if fix_shorten_orfs and genome_fasta is None:
         raise ValueError(
             "If --fix-shorten-orfs is set, you must provide a genome FASTA file."
+        )
+    if fix_lengthen_orfs and genome_fasta is None:
+        raise ValueError(
+            "If --fix-lengthen-orfs is set, you must provide a genome FASTA file."
         )
     
     gff = geffa.GffFile(annotations_gff, 
@@ -268,7 +273,7 @@ def identify_UTRs(
                         f"Could not assign 5'UTR to {mRNA.attributes['ID']}, "
                         "the UTR would be longer than the allowed maximum.")
                 else:
-                    FivePrimeUTRNode(
+                    utr = FivePrimeUTRNode(
                         -1,
                         seqreg,
                         'slaputrs',
@@ -283,6 +288,26 @@ def identify_UTRs(
                             f'Parent={mRNA.attributes["ID"]}'
                         ),
                     )
+                    if fix_lengthen_orfs:
+                        best_offset = -1
+                        for i in range(len(utr.sequence), 0, -3):
+                            if utr.sequence[i-3:i] in ["TAA", "TGA", "TAG"]:
+                                best_offset = -1
+                                break
+                            if utr.sequence[i-3:i] == "ATG":
+                                best_offset = i - 3
+                        if best_offset > -1:
+                            best_offset = len(utr.sequence) - best_offset
+                            logger.debug(
+                                f"Start codon for {mRNA.attributes['ID']} updated to "
+                                f"codon number {-best_offset // 3}")
+                            if mRNA.strand == '+':
+                                cds.start = cds.start - best_offset
+                                utr.end = utr.end - best_offset
+                            else:
+                                cds.end = cds.end + best_offset
+                                utr.start = utr.start + best_offset
+            
             if pas_sites:
                 positions = [
                     pas.start

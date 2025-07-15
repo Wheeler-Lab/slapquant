@@ -365,6 +365,17 @@ def slaputrs_main():
         default=False,
     )
     parser.add_argument(
+        '--fix-lengthen-orfs',
+        help=(
+            "Allow fixing CDSs by lengthening, selecting the closest "
+            "in-frame start codon downstream of the consensus SLAS"
+        ),
+        action="store_const",
+        dest="fix_lengthen_orfs",
+        const=True,
+        default=False,
+    )
+    parser.add_argument(
         '-v',
         '--verbose',
         help="Give more info about the process.",
@@ -384,6 +395,7 @@ def slaputrs_main():
         max_3utr_length=args.max_3UTR_length,
         genome_fasta=args.genome_fasta,
         fix_shorten_orfs=args.fix_shorten_orfs,
+        fix_lengthen_orfs=args.fix_lengthen_orfs,
     )
     gff.save('/dev/stdout')
 
