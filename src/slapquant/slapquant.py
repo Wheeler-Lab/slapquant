@@ -80,17 +80,11 @@ def find_sl_sequence(
 
             # The candidate SL sequence is the part that is being clipped
             # before the start of the alignment to the genome.
-            # The SL sequence contains a "G" at the end. The SL acceptor site
-            # is usually the dinucleotide "AG", can be others but always ends
-            # with a "G". The aligner will therefore align everything up to
-            # and including the "G" that should be part of the SL sequence. We
-            # therefore need to recover the missing nucleotide from the
-            # remainder (the aligned bit).
-            # We also only use `sl_length` nucleotides (the last positions) of the
+            # We only use `sl_length` nucleotides (the last positions) of the
             # SL sequence, this is enough to identify SLAS sites, and avoids
             # unnecessary discarding of reads due to errors in the extended
             # clipped sequence.
-            sl_candidate = clipped[-sl_length+1:] + remainder[0]
+            sl_candidate = clipped[-sl_length:]
 
             # Count sequence
             # TODO: Could use a Bloom filter to make it more performant.
@@ -428,11 +422,11 @@ def _process_read_file(reads: pathlib.Path):
     polyA_sites, polyA_sites_thread = filter_alignments_by_clipped_sequence(
         alignments_tee.outputs[0],
         [
-            # We look for at least `pa_length` As softclipped at the end of a read if
-            # we're on the forward strand...
+            # We look for at least `pa_length` As softclipped at the end of a
+            # read if we're on the forward strand...
             FilterPattern(f'A{{{pa_length},}}', 'end', '+'),
-            # ...and for at least `pa_length` Ts softclipped at the start of a read if
-            # we're on the reverse strand.
+            # ...and for at least `pa_length` Ts softclipped at the start of a
+            # read if we're on the reverse strand.
             FilterPattern(f'T{{{pa_length},}}', 'start', '-'),
         ]
     )
