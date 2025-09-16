@@ -111,11 +111,26 @@ def assign_sites(
                     feature for feature in nodes_SLAS
                     if (
                         (
+                            (feature.type == 'PAS') and
+                            (slas.strand == '+') and
+                            (feature.strand == '+') and
+                            (feature.end > slas.end) and
+                            (int(feature.attributes['usage']) >
+                                int(slas.attributes['usage']))
+                        ) or (
+                            (feature.type == 'PAS') and
+                            (slas.strand == '-') and
+                            (feature.strand == '-') and
+                            (feature.start < slas.start) and
+                            (int(feature.attributes['usage']) >
+                                int(slas.attributes['usage']))
+                        ) or (
+                            (feature.type == 'CDS') and
                             (slas.strand == '+') and
                             (feature.strand == '+') and
                             (feature.end > slas.end)
-                        ) or
-                        (
+                        ) or (
+                            (feature.type == 'CDS') and
                             (slas.strand == '-') and
                             (feature.strand == '-') and
                             (feature.start < slas.start)
@@ -146,10 +161,26 @@ def assign_sites(
                     feature for feature in nodes_PAS
                     if (
                         (
+                            (feature.type == 'SLAS') and
+                            (pas.strand == '+') and
+                            (feature.strand == '+') and
+                            (feature.start < pas.start) and
+                            (int(feature.attributes['usage']) >
+                                int(pas.attributes['usage']))
+                        ) or (
+                            (feature.type == 'SLAS') and
+                            (pas.strand == '-') and
+                            (feature.strand == '-') and
+                            (feature.end > pas.end) and
+                            (int(feature.attributes['usage']) >
+                                int(pas.attributes['usage']))
+                        ) or (
+                            (feature.type == "CDS") and
                             (pas.strand == '+') and
                             (feature.strand == '+') and
                             (feature.start < pas.start)
                         ) or (
+                            (feature.type == "CDS") and
                             (pas.strand == '-') and
                             (feature.strand == '-') and
                             (feature.end > pas.end)
