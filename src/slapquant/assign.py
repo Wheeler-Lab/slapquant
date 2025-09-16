@@ -113,14 +113,12 @@ def assign_sites(
                         (
                             (feature.type == 'PAS') and
                             (slas.strand == '+') and
-                            (feature.strand == '+') and
                             (feature.end > slas.end) and
                             (int(feature.attributes['usage']) >
                                 int(slas.attributes['usage']))
                         ) or (
                             (feature.type == 'PAS') and
                             (slas.strand == '-') and
-                            (feature.strand == '-') and
                             (feature.start < slas.start) and
                             (int(feature.attributes['usage']) >
                                 int(slas.attributes['usage']))
@@ -163,14 +161,12 @@ def assign_sites(
                         (
                             (feature.type == 'SLAS') and
                             (pas.strand == '+') and
-                            (feature.strand == '+') and
                             (feature.start < pas.start) and
                             (int(feature.attributes['usage']) >
                                 int(pas.attributes['usage']))
                         ) or (
                             (feature.type == 'SLAS') and
                             (pas.strand == '-') and
-                            (feature.strand == '-') and
                             (feature.end > pas.end) and
                             (int(feature.attributes['usage']) >
                                 int(pas.attributes['usage']))
