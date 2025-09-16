@@ -48,6 +48,7 @@ def assign_sites(
     strip_existing: bool,
     min_slas_usage: int = 2,
     min_pas_usage: int = 2,
+    min_usage_factor: float = 1.0
 ):
     gene_models = geffa.GffFile(
         gene_models_gff, ignore_unknown_feature_types=True)
@@ -115,13 +116,13 @@ def assign_sites(
                             (slas.strand == '+') and
                             (feature.end > slas.end) and
                             (int(feature.attributes['usage']) >
-                                int(slas.attributes['usage']))
+                                int(slas.attributes['usage']) * min_usage_factor)
                         ) or (
                             (feature.type == 'PAS') and
                             (slas.strand == '-') and
                             (feature.start < slas.start) and
                             (int(feature.attributes['usage']) >
-                                int(slas.attributes['usage']))
+                                int(slas.attributes['usage']) * min_usage_factor)
                         ) or (
                             (feature.type == 'CDS') and
                             (slas.strand == '+') and
@@ -163,13 +164,13 @@ def assign_sites(
                             (pas.strand == '+') and
                             (feature.start < pas.start) and
                             (int(feature.attributes['usage']) >
-                                int(pas.attributes['usage']))
+                                int(pas.attributes['usage']) * min_usage_factor)
                         ) or (
                             (feature.type == 'SLAS') and
                             (pas.strand == '-') and
                             (feature.end > pas.end) and
                             (int(feature.attributes['usage']) >
-                                int(pas.attributes['usage']))
+                                int(pas.attributes['usage']) * min_usage_factor)
                         ) or (
                             (feature.type == "CDS") and
                             (pas.strand == '+') and
