@@ -250,6 +250,12 @@ def identify_UTRs(
                 continue
             mRNA: MRNANode = mRNAs[0]
             CDSs = mRNA.CDS_children()
+            if len(CDSs) == 0:
+                logger.info(
+                    f"{mRNA.attributes['ID']} has no CDS assigned, skipping UTR "
+                    "assignment."
+                )
+                continue
 
             slas_sites: list[SLASNode] = []
             for slas in gene.children_of_type(SLASNode):
