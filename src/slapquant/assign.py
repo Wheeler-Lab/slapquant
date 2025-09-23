@@ -99,10 +99,12 @@ def assign_sites(
         CDS_to_search_SLAS = [
             mRNA.CDS_children()[0]
             for mRNA in seqreg.nodes_of_type(MRNANode)
+            if len(mRNA.CDS_children()) > 0
         ]
         CDS_to_search_PAS = [
             mRNA.CDS_children()[-1]
             for mRNA in seqreg.nodes_of_type(MRNANode)
+            if len(mRNA.CDS_children()) > 0
         ]
         nodes_SLAS = PAS_to_search + CDS_to_search_SLAS
         nodes_PAS = SLAS_to_search + CDS_to_search_PAS
