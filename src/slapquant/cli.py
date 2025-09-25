@@ -255,19 +255,19 @@ def slapassign_main():
         '--min-slas-usage', '-m',
         help=(
             "When assigning sites to genes, discard SLAS sites with a "
-            "usage count below this value. (default 2)"
+            "usage count below this value. (default 4)"
         ),
         type=int,
-        default=2,
+        default=4,
     )
     parser.add_argument(
         '--min-pas-usage', '-n',
         help=(
             "When assigning sites to genes, discard PAS sites with a "
-            "usage count below this value. (default 2)"
+            "usage count below this value. (default 4)"
         ),
         type=int,
-        default=2,
+        default=4,
     )
     parser.add_argument(
         '--min-usage-factor',
