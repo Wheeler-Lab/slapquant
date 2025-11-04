@@ -330,7 +330,7 @@ def identify_UTRs(
                     )
                     if fix_lengthen_orfs:
                         best_offset = -1
-                        for i in range(len(utr.sequence), 0, -3):
+                        for i in range(len(utr.sequence), 2, -3):
                             if utr.sequence[i-3:i] in ["TAA", "TGA", "TAG"]:
                                 best_offset = -1
                                 break
