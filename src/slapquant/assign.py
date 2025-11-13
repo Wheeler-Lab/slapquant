@@ -117,14 +117,20 @@ def assign_sites(
                             (feature.type == 'PAS') and
                             (slas.strand == '+') and
                             (feature.end > slas.end) and
-                            (int(feature.attributes['usage']) >
-                                int(slas.attributes['usage']) * min_usage_factor)
+                            (
+                                int(feature.attributes['usage']) >
+                                int(slas.attributes['usage']) *
+                                min_usage_factor
+                            )
                         ) or (
                             (feature.type == 'PAS') and
                             (slas.strand == '-') and
                             (feature.start < slas.start) and
-                            (int(feature.attributes['usage']) >
-                                int(slas.attributes['usage']) * min_usage_factor)
+                            (
+                                int(feature.attributes['usage']) >
+                                int(slas.attributes['usage']) *
+                                min_usage_factor
+                            )
                         ) or (
                             (feature.type == 'CDS') and
                             (slas.strand == '+') and
@@ -165,14 +171,20 @@ def assign_sites(
                             (feature.type == 'SLAS') and
                             (pas.strand == '+') and
                             (feature.start < pas.start) and
-                            (int(feature.attributes['usage']) >
-                                int(pas.attributes['usage']) * min_usage_factor)
+                            (
+                                int(feature.attributes['usage']) >
+                                int(pas.attributes['usage']) *
+                                min_usage_factor
+                            )
                         ) or (
                             (feature.type == 'SLAS') and
                             (pas.strand == '-') and
                             (feature.end > pas.end) and
-                            (int(feature.attributes['usage']) >
-                                int(pas.attributes['usage']) * min_usage_factor)
+                            (
+                                int(feature.attributes['usage']) >
+                                int(pas.attributes['usage']) *
+                                min_usage_factor
+                            )
                         ) or (
                             (feature.type == "CDS") and
                             (pas.strand == '+') and
@@ -219,21 +231,25 @@ def identify_UTRs(
 ):
     if fix_shorten_orfs and genome_fasta is None:
         raise ValueError(
-            "If fix_shorten_orfs is True, you must provide the path of a genome FASTA file."
+            "If fix_shorten_orfs is True, you must provide the path of a"
+            "genome FASTA file."
         )
     if fix_lengthen_orfs and genome_fasta is None:
         raise ValueError(
-            "If fix_lengthen_orfs is True, you must provide the path of a genome FASTA file."
+            "If fix_lengthen_orfs is True, you must provide the path of a"
+            "genome FASTA file."
         )
-    
-    gff = geffa.GffFile(annotations_gff, 
+
+    gff = geffa.GffFile(
+        annotations_gff,
         ignore_unknown_feature_types=True,
-        fasta_file=genome_fasta)
+        fasta_file=genome_fasta
+    )
     check_or_strip_nodes(
         gff, ["five_prime_UTR", "three_prime_UTR"], strip_existing)
-    
-    cds_shortened=0
-    cds_lengthened=0 
+
+    cds_shortened = 0
+    cds_lengthened = 0
 
     for seqreg in gff.sequence_regions.values():
         for gene in seqreg.nodes_of_type(GeneNode):
@@ -254,18 +270,18 @@ def identify_UTRs(
             CDSs = mRNA.CDS_children()
             if len(CDSs) == 0:
                 logger.info(
-                    f"{mRNA.attributes['ID']} has no CDS assigned, skipping UTR "
-                    "assignment."
+                    f"{mRNA.attributes['ID']} has no CDS assigned, skipping "
+                    "UTR assignment."
                 )
                 continue
 
             slas_sites: list[SLASNode] = []
             for slas in gene.children_of_type(SLASNode):
-                    slas_sites.append(slas)
+                slas_sites.append(slas)
 
             pas_sites: list[PASNode] = []
             for pas in gene.children_of_type(PASNode):
-                    pas_sites.append(pas)
+                pas_sites.append(pas)
 
             if slas_sites:
                 slas = sorted(slas_sites, key=lambda x: -
@@ -293,10 +309,10 @@ def identify_UTRs(
                             cds.end = cds.end - best_start
                     else:
                         logger.warning(
-                            f"SLAS for {mRNA.attributes['ID']} is within the CDS, "
-                            "and an suitable alternative start codon could not "
-                            "be found.")
-                
+                            f"SLAS for {mRNA.attributes['ID']} is within the "
+                            "CDS, and an suitable alternative start codon "
+                            "could not be found.")
+
                 if mRNA.strand == '+':
                     start = slas.end + 2
                     end = cds.start - 1
@@ -340,15 +356,16 @@ def identify_UTRs(
                             best_offset = len(utr.sequence) - best_offset
                             cds_lengthened += 1
                             logger.debug(
-                                f"Start codon for {mRNA.attributes['ID']} updated to "
-                                f"codon number {-best_offset // 3}")
+                                f"Start codon for {mRNA.attributes['ID']} "
+                                f"updated to codon number {-best_offset // 3}"
+                            )
                             if mRNA.strand == '+':
                                 cds.start = cds.start - best_offset
                                 utr.end = utr.end - best_offset
                             else:
                                 cds.end = cds.end + best_offset
                                 utr.start = utr.start + best_offset
-            
+
             if pas_sites:
                 positions = [
                     pas.start
@@ -395,7 +412,9 @@ def identify_UTRs(
                     )
 
     if fix_shorten_orfs and fix_lengthen_orfs:
-        logger.warning(f"{cds_shortened} CDSs shortened and {cds_lengthened} CDSs lengthened") 
+        logger.warning(
+            f"{cds_shortened} CDSs shortened and {cds_lengthened} CDSs "
+            "lengthened.")
     elif fix_shorten_orfs:
         logger.warning("f{cds_shortened} CDSs shortened")
     elif fix_lengthen_orfs:
