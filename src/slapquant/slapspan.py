@@ -222,6 +222,21 @@ def process_reads(
         how="outer",
     )
 
+    combined.loc[:, "SLAS_spans_usage_weighted"] = (
+        combined.SLAS_spans / combined.total_SLAS_usage)
+    combined.loc[:, "PAS_spans_usage_weighted"] = (
+        combined.PAS_spans / combined.total_PAS_usage)
+
+    mRNA_lengths = pd.Series(
+        {
+            (seqreg.name, mRNA.parents[0].attributes["ID"]):
+            mRNA.end - mRNA.start + 1
+            for seqreg in gff.sequence_regions.values()
+            for mRNA in seqreg.nodes_of_type(MRNANode)
+        },
+        name="mRNA_length",
+    )
+
     coding_genes = pd.DataFrame(
         index=pd.MultiIndex.from_tuples(
             {
@@ -235,14 +250,14 @@ def process_reads(
     return (
         combined
         .join(coding_genes, how="outer").fillna(0).astype(int)
+        .join(mRNA_lengths, how="left")
         .loc[:, [
             "SLAS_spans",
-            "usage_weighted_SLAS_spans",
-            "total_SLAS_usage",
+            "SLAS_spans_usage_weighted",
             "PAS_spans",
-            "usage_weighted_PAS_spans",
-            "total_PAS_usage",
+            "PAS_spans_usage_weighted",
             "aligned_mRNA_reads",
+            "mRNA_length",
         ]]
     )
 
