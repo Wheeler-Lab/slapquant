@@ -235,7 +235,7 @@ def process_reads(
             for mRNA in seqreg.nodes_of_type(MRNANode)
         },
         name="mRNA_length",
-    )
+    ).rename_axis(["contig", "gene"])
 
     coding_genes = pd.DataFrame(
         index=pd.MultiIndex.from_tuples(
