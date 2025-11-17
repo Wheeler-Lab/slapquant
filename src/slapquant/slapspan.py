@@ -249,7 +249,8 @@ def process_reads(
     )
     return (
         combined
-        .join(coding_genes, how="outer").fillna(0).astype(int)
+        .join(coding_genes, how="outer")
+        .fillna(0)
         .join(mRNA_lengths, how="left")
         .loc[:, [
             "SLAS_spans",
@@ -259,6 +260,14 @@ def process_reads(
             "aligned_mRNA_reads",
             "mRNA_length",
         ]]
+        .astype({
+            "SLAS_spans": int,
+            "SLAS_spans_usage_weighted": float,
+            "PAS_spans": int,
+            "PAS_spans_usage_weighted": float,
+            "aligned_mRNA_reads": int,
+            "mRNA_length": int,
+        })
     )
 
 
