@@ -7,6 +7,7 @@ from slapquant.slapquant import (
 )
 from slapquant.assign import assign_sites, identify_UTRs
 from slapquant.slapspan import process_reads as slapspan_process_reads
+from slapquant.slapstats import gather_stats as slapstats_gather_stats
 
 from geffa.geffa import Seq
 
@@ -514,5 +515,48 @@ def slapspan_main():
         args.rnaseq_reads,
         sl_sequence,
         args.pa_length,
+    )
+    df.to_csv('/dev/stdout')
+
+
+def slapstats_main():
+    parser = argparse.ArgumentParser(
+        description=(
+            "Read GFF file and output per-gene SLAS and PAS site counts and "
+            "the total per gene SLAS and PAS usage."
+        ),
+    )
+    parser.add_argument(
+        'slas_pas_gff',
+        type=pathlib.Path,
+        help=(
+            "The path to a GFF file containing the SLAS and PAS sites (they "
+            "need to be assigned to genes, so probably should have been run "
+            "through slapassign)."
+        ),
+    )
+    parser.add_argument(
+        '-v',
+        '--verbose',
+        help="Give more info about the process.",
+        action="store_const",
+        dest="loglevel",
+        const=logging.INFO,
+        default=logging.WARNING,
+    )
+    parser.add_argument(
+        '-d',
+        '--debug',
+        help="Debugging info (very verbose)",
+        action="store_const",
+        dest="loglevel",
+        const=logging.DEBUG,
+    )
+
+    args = parser.parse_args()
+    logger.setLevel(args.loglevel)
+
+    df = slapstats_gather_stats(
+        args.slas_pas_gff,
     )
     df.to_csv('/dev/stdout')
