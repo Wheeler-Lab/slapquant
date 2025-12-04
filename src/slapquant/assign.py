@@ -289,7 +289,7 @@ def identify_UTRs(
                 cds = CDSs[0]
 
                 if mRNA.strand == '+':
-                    slas_offset = (cds.start - 1) - (slas.end + 2)
+                    slas_offset = (cds.start - 1) - (slas.end + 1)
                 else:
                     slas_offset = (slas.start - 1) - (cds.end + 1)
                 if slas_offset < 0 and fix_shorten_orfs:
