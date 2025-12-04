@@ -248,11 +248,14 @@ def identify_UTRs(
     check_or_strip_nodes(
         gff, ["five_prime_UTR", "three_prime_UTR"], strip_existing)
 
-    cds_shortened = 0
-    cds_lengthened = 0
+    nr_cdss_shortened = 0
+    nr_cdss_lengthened = 0
 
     for seqreg in gff.sequence_regions.values():
         for gene in seqreg.nodes_of_type(GeneNode):
+            cds_shortened = False
+            cds_lengthened = False
+
             mRNAs = gene.children_of_type(MRNANode)
             if len(mRNAs) == 0:
                 logger.info(
@@ -299,7 +302,7 @@ def identify_UTRs(
                             best_start = i
                             break
                     if best_start > 0:
-                        cds_shortened += 1
+                        cds_shortened = True
                         logger.debug(
                             f"Start codon for {mRNA.attributes['ID']} updated "
                             f"to codon number {best_start // 3}")
@@ -354,7 +357,7 @@ def identify_UTRs(
                                 best_offset = i - 3
                         if best_offset > -1:
                             best_offset = len(utr.sequence) - best_offset
-                            cds_lengthened += 1
+                            cds_lengthened = True
                             logger.debug(
                                 f"Start codon for {mRNA.attributes['ID']} "
                                 f"updated to codon number {-best_offset // 3}"
@@ -365,6 +368,13 @@ def identify_UTRs(
                             else:
                                 cds.end = cds.end + best_offset
                                 utr.start = utr.start + best_offset
+
+                if cds_shortened: nr_cdss_shortened += 1
+                if cds_lengthened: nr_cdss_lengthened += 1
+                if cds_shortened and cds_lengthened:
+                    raise ValueError(
+                        f"{mRNA.attributes['ID']} had its CDS both shortened "
+                        "and lengthened during UTR assignment.")
 
             if pas_sites:
                 positions = [
@@ -412,12 +422,11 @@ def identify_UTRs(
                     )
 
     if fix_shorten_orfs and fix_lengthen_orfs:
-        logger.warning(
-            f"{cds_shortened} CDSs shortened and {cds_lengthened} CDSs "
+        logger.info(
+            f"{nr_cdss_shortened} CDSs shortened and {nr_cdss_lengthened} CDSs "
             "lengthened.")
     elif fix_shorten_orfs:
-        logger.warning("f{cds_shortened} CDSs shortened")
+        logger.info(f"{nr_cdss_shortened} CDSs shortened")
     elif fix_lengthen_orfs:
-        logger.warning(f"{cds_lengthened} CDSs lengthened")
-
+        logger.info(f"{nr_cdss_lengthened} CDSs lengthened")
     return gff
