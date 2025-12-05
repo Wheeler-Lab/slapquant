@@ -13,7 +13,7 @@ from ._utils import CandidateAlignment
 
 logger = logging.getLogger('bwamem')
 
-BWA_PATH = os.environ.get('BWA_PATH', 'bwa mem')
+BWA_PATH = os.environ.get('BWA_PATH', 'bwa')
 
 SEQUENCE_RE = re.compile("^[A-Za-z]+$")
 
