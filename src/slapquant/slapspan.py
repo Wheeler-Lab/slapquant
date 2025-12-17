@@ -6,6 +6,7 @@ from queue import Queue
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 from collections import Counter
+from collections.abc import Sequence
 from typing import NamedTuple
 from bisect import bisect_left, bisect_right
 import threading
@@ -293,8 +294,10 @@ def _init_worker(
 
 
 class ReadFileResults:
-    def __init__(self, read_file: pathlib.Path):
-        self.read_files = {read_file}
+    def __init__(self, read_files: pathlib.Path | Sequence[pathlib.Path]):
+        if isinstance(read_files, pathlib.Path):
+            read_files = {read_files}
+        self.read_files = set(read_files)
         self.slas_count = Counter[tuple[str, str]]()
         self.slas_usage = Counter[tuple[str, str]]()
         self.pas_count = Counter[tuple[str, str]]()
@@ -306,11 +309,11 @@ class ReadFileResults:
             raise ValueError("Cannot combine already combined results!")
         new = ReadFileResults(self.read_files.union(other.read_files))
         for part in [self, other]:
-            part.slas_count.update(self.slas_count)
-            part.slas_usage.update(self.slas_usage)
-            part.pas_count.update(self.pas_count)
-            part.pas_usage.update(self.pas_usage)
-            part.mRNA_reads.update(self.mRNA_reads)
+            new.slas_count.update(part.slas_count)
+            new.slas_usage.update(part.slas_usage)
+            new.pas_count.update(part.pas_count)
+            new.pas_usage.update(part.pas_usage)
+            new.mRNA_reads.update(part.mRNA_reads)
 
         return new
 
