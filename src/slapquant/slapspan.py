@@ -1,22 +1,22 @@
-from functools import reduce
+import logging
+import multiprocessing
 import operator
 import pathlib
-import logging
-from queue import Queue
-import multiprocessing
-from concurrent.futures import ProcessPoolExecutor
+import threading
+from bisect import bisect_left, bisect_right
 from collections import Counter
 from collections.abc import Sequence
+from concurrent.futures import ProcessPoolExecutor
+from functools import reduce
+from queue import Queue
 from typing import NamedTuple
-from bisect import bisect_left, bisect_right
-import threading
+
+import pandas as pd
+from geffa.geffa import CDSNode, GeneNode, GffFile, MRNANode, PASNode, Seq, SLASNode
+from tqdm.auto import tqdm
 
 from ._utils import CandidateAlignment, QueueConsumer
 from .bwamem import BWAMEM
-
-from tqdm.auto import tqdm
-from geffa.geffa import Seq, GffFile, SLASNode, PASNode, CDSNode, MRNANode, GeneNode
-import pandas as pd
 
 logger = logging.getLogger('slapspan')
 
@@ -178,11 +178,16 @@ def process_reads(
         else:
             results = list(sites_iterator)
 
+    return collate_results(results, gff)
+
+
+def collate_results(results: list["ReadFileResults"], gff: GffFile):
     total: ReadFileResults = reduce(operator.add, results)
+    print(total.slas_count)
 
     combined = pd.concat(
         [
-            pd.Series(entry, name=label).rename_axis(["contig", "gene"])
+            pd.Series(entry, name=label, ).rename_axis(["contig", "gene"])
             for label, entry in [
                 ("SLAS_spans", total.slas_count),
                 ("usage_weighted_SLAS_spans", total.slas_usage),
@@ -190,6 +195,7 @@ def process_reads(
                 ("usage_weighted_PAS_spans", total.pas_usage),
                 ("aligned_mRNA_reads", total.mRNA_reads),
             ]
+            if len(entry) > 0
         ],
         axis=1,
     )
