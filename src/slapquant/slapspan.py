@@ -181,13 +181,21 @@ def process_reads(
     return collate_results(results, gff)
 
 
+def new_contig_gene_series(data, name):
+    if len(data) > 0:
+        return pd.Series(data, name=name).rename_axis(["contig", "gene"])
+    series = pd.Series([], name=name)
+    series.index = pd.MultiIndex(levels=[[],[]], codes=[[],[]], names=["contig", "gene"])
+    return series
+
+
 def collate_results(results: list["ReadFileResults"], gff: GffFile):
     total: ReadFileResults = reduce(operator.add, results)
     print(total.slas_count)
 
     combined = pd.concat(
         [
-            pd.Series(entry, name=label, ).rename_axis(["contig", "gene"])
+            new_contig_gene_series(entry, label)
             for label, entry in [
                 ("SLAS_spans", total.slas_count),
                 ("usage_weighted_SLAS_spans", total.slas_usage),
@@ -195,7 +203,6 @@ def collate_results(results: list["ReadFileResults"], gff: GffFile):
                 ("usage_weighted_PAS_spans", total.pas_usage),
                 ("aligned_mRNA_reads", total.mRNA_reads),
             ]
-            if len(entry) > 0
         ],
         axis=1,
     )
