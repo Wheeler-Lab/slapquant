@@ -237,11 +237,11 @@ def collate_results(results: list["ReadFileResults"], gff: GffFile):
     )
 
     combined.loc[:, "SLAS_spans_usage_weighted"] = [
-        row.SLAS_usage / row.total_SLAS_usage if row.total_SLAS_usage > 0 else float("NaN")
+        row.usage_weighted_SLAS_spans / row.total_SLAS_usage if row.total_SLAS_usage > 0 else float("NaN")
         for _, row in combined.iterrows()
     ]
     combined.loc[:, "PAS_spans_usage_weighted"] = [
-        row.PAS_usage / row.total_PAS_usage if row.total_PAS_usage > 0 else float("NaN")
+        row.usage_weighted_PAS_spans / row.total_PAS_usage if row.total_PAS_usage > 0 else float("NaN")
         for _, row in combined.iterrows()
     ]
 
