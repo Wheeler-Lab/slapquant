@@ -236,10 +236,14 @@ def collate_results(results: list["ReadFileResults"], gff: GffFile):
         how="outer",
     )
 
-    combined.loc[:, "SLAS_spans_usage_weighted"] = (
-        combined.SLAS_spans / combined.total_SLAS_usage)
-    combined.loc[:, "PAS_spans_usage_weighted"] = (
-        combined.PAS_spans / combined.total_PAS_usage)
+    combined.loc[:, "SLAS_spans_usage_weighted"] = [
+        row.SLAS_usage / row.total_SLAS_usage if row.total_SLAS_usage > 0 else float("NaN")
+        for _, row in combined.iterrows()
+    ]
+    combined.loc[:, "PAS_spans_usage_weighted"] = [
+        row.PAS_usage / row.total_PAS_usage if row.total_PAS_usage > 0 else float("NaN")
+        for _, row in combined.iterrows()
+    ]
 
     mRNA_lengths = pd.Series(
         {
