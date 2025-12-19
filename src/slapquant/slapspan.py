@@ -268,8 +268,8 @@ def collate_results(results: list["ReadFileResults"], gff: GffFile):
     return (
         combined
         .join(coding_genes, how="outer")
-        .fillna(0)
         .join(mRNA_lengths, how="left")
+        .fillna(0)
         .loc[:, [
             "SLAS_spans",
             "SLAS_spans_usage_weighted",
