@@ -96,6 +96,10 @@ def assign_sites(
     for seqreg in gene_models.sequence_regions.values():
         SLAS_to_search = seqreg.nodes_of_type(SLASNode)
         PAS_to_search = seqreg.nodes_of_type(PASNode)
+        CDSless_mRNAs = [
+            mRNA for mRNA in seqreg.nodes_of_type(MRNANode)
+            if len(mRNA.CDS_children()) == 0
+        ]
         CDS_to_search_SLAS = [
             mRNA.CDS_children()[0]
             for mRNA in seqreg.nodes_of_type(MRNANode)
@@ -106,8 +110,8 @@ def assign_sites(
             for mRNA in seqreg.nodes_of_type(MRNANode)
             if len(mRNA.CDS_children()) > 0
         ]
-        nodes_SLAS = PAS_to_search + CDS_to_search_SLAS
-        nodes_PAS = SLAS_to_search + CDS_to_search_PAS
+        nodes_SLAS = PAS_to_search + CDS_to_search_SLAS + CDSless_mRNAs
+        nodes_PAS = SLAS_to_search + CDS_to_search_PAS + CDSless_mRNAs
         for slas in seqreg.nodes_of_type(SLASNode):
             nodes_to_search = sorted(
                 (
@@ -141,6 +145,15 @@ def assign_sites(
                             (slas.strand == '-') and
                             (feature.strand == '-') and
                             (feature.start < slas.start)
+                        ) or (
+                            (feature.type == 'mRNA') and
+                            (
+                                (
+                                    (slas.strand == '+') and (feature.end > slas.end)
+                                ) or (
+                                    (slas.strand == '-') and (feature.start < slas.start)
+                                )
+                            )
                         )
                     )
                 ),
@@ -159,6 +172,11 @@ def assign_sites(
                 logger.info(
                     f"Closest node to {slas.attributes['ID']} is a PAS, no "
                     "CDS could be assigned.")
+            elif closest_node.type == 'mRNA':
+                logger.info(
+                    f"Closest node to {slas.attributes['ID']} is the CDS-less mRNA {closest_node.attributes['ID']}, no "
+                    "CDS could be assigned."
+                )
             else:
                 slas.add_parent(closest_node.parents[0].parents[0])
 
@@ -195,6 +213,15 @@ def assign_sites(
                             (pas.strand == '-') and
                             (feature.strand == '-') and
                             (feature.end > pas.end)
+                        ) or (
+                            (feature.type == 'mRNA') and
+                            (
+                                (
+                                    (slas.strand == '+') and (feature.start < pas.start)
+                                ) or (
+                                    (slas.strand == '-') and (feature.end > pas.end)
+                                )
+                            )
                         )
                     )
                 ),
@@ -212,6 +239,11 @@ def assign_sites(
             if closest_node.type == 'SLAS':
                 logger.info(
                     f"Closest node to {pas.attributes['ID']} is a SLAS, no "
+                    "CDS could be assigned."
+                )
+            elif closest_node.type == 'mRNA':
+                logger.info(
+                    f"Closest node to {pas.attributes['ID']} is the CDS-less mRNA {closest_node.attributes['ID']}, no "
                     "CDS could be assigned."
                 )
             else:
