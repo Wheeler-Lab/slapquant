@@ -119,6 +119,16 @@ def slapquant_main():
         default=6
     )
     parser.add_argument(
+        "--data-type",
+        help=(
+            "The type of sequencing data being processed, which determines "
+            "the number of allowed mismatches in matching spliced leader and "
+            "poly-A sequences"
+        ),
+        choices=["illumina", "nanopore"],
+        default="illumina"
+    )
+    parser.add_argument(
         '-v',
         '--verbose',
         help="Give more info about the process.",
@@ -146,7 +156,8 @@ def slapquant_main():
         args.rnaseq_reads,
         sl_sequence,
         args.sl_length,
-        args.pa_length
+        args.pa_length,
+        data_type=args.data_type,
     )
     gff.save('/dev/stdout')
 

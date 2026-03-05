@@ -95,6 +95,7 @@ class CandidateAlignment(NamedTuple):
 
     @staticmethod
     def from_line(line: str):
+        print(line)
         (
             sequence_name,
             position_str,

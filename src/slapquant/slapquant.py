@@ -11,6 +11,7 @@ import multiprocessing
 
 from ._utils import QueueConsumer, QueueTee, FinishingQueue, CandidateAlignment
 from .bwamem import BWAMEM
+from .minimap2 import Minimap2
 
 from geffa.geffa import Seq, SLASNode, PASNode
 from geffa import GffFile
@@ -22,19 +23,23 @@ logger = logging.getLogger('slapquant')
 
 
 def do_alignment(
-    bwa: BWAMEM,
+    aligner: BWAMEM | Minimap2,
     readfiles: list[pathlib.Path | str],
     bwa_threads: int | None = None,
     this_logger: logging.Logger = logger
 ) -> tuple[Queue[CandidateAlignment], threading.Thread]:
     # This queue will hold the pre-filtered softclipped sequences from
-    # BWA-MEM's alignment.
+    # the aligner's alignment.
     queue = Queue[CandidateAlignment](maxsize=100000)
     # Start aligning
-    bwa_thread = bwa.align(
-        readfiles, queue, threads=bwa_threads, this_logger=this_logger)
+    alignment_thread = aligner.align(
+        readfiles, queue,
+        mismatch_proportion=mismatch_proportion,
+        threads=bwa_threads,
+        this_logger=this_logger
+    )
     # Return the queue and the thread (for future joining when it is done)
-    return queue, bwa_thread
+    return queue, alignment_thread
 
 
 def find_sl_sequence(
@@ -222,7 +227,7 @@ def process_reads_slapidentify(
     sl_length: int = 9,
 ):
     # Index the genome
-    bwa = BWAMEM(reference_genome)
+    aligner = BWAMEM(reference_genome)
     n_cpus = multiprocessing.cpu_count()
     # Running the alignment in parallel with 8 cores allocated to each worker
     # seems to be most efficient.
@@ -232,7 +237,7 @@ def process_reads_slapidentify(
     with ProcessPoolExecutor(
         n_workers,
         initializer=_init_worker,
-        initargs=(bwa, n_bwa_threads, None, sl_length, None)
+        initargs=(aligner, n_bwa_threads, None, sl_length, None)
     ) as executor:
         sequence_iterator = executor.map(
             _process_read_file_slidentify, rnaseq_reads, chunksize=1)
@@ -256,6 +261,7 @@ def process_reads(
     sl_sequence: Seq | None = None,
     sl_length: int = 9,
     pa_length: int = 6,
+    data_type: str = "illumina"
 ):
     if sl_sequence and sl_sequence[-1] == "G":
         logger.warning(
@@ -268,18 +274,31 @@ def process_reads(
             "called SL acceptor sites!"
         )
 
-    # Index the genome
-    bwa = BWAMEM(reference_genome)
-    n_cpus = multiprocessing.cpu_count()
+    # Select the alignment tool and mismatch tolerance based on the data type.
+    if sl_sequence is None and data_type != "nanopore":
+        raise ValueError("For non-illumina data, the spliced leader sequence must be specified.")
+    # Also triggers indexing
+    if data_type == "illumina":
+        aligner = BWAMEM(reference_genome)
+        mismatch_proportion = 0
+    elif data_type == "nanopore":
+        aligner = Minimap2(reference_genome)
+        mismatch_proportion = 0.1
+    else:
+        raise ValueError(f"Unknown data type: {data_type}")
+    this_logger = logger.getChild('alignment')
+    this_logger.debug(f"Using {aligner.__class__.__name__} for alignment.")
+
     # Running the alignment in parallel with 8 cores allocated to each worker
     # seems to be most efficient.
+    n_cpus = multiprocessing.cpu_count()
     n_workers = min(n_cpus // 8, len(rnaseq_reads))
-    n_bwa_threads = min(n_cpus // n_workers, 8)
+    n_aligner_threads = min(n_cpus // n_workers, 8)
 
     with ProcessPoolExecutor(
         n_workers,
         initializer=_init_worker,
-        initargs=(bwa, n_bwa_threads, sl_sequence, sl_length, pa_length)
+        initargs=(aligner, n_aligner_threads, sl_sequence, sl_length, pa_length, mismatch_proportion)
     ) as executor:
         sites_iterator = executor.map(
             _process_read_file, rnaseq_reads, chunksize=1)
@@ -336,20 +355,22 @@ def process_reads(
 
 
 def _init_worker(
-    _bwa: BWAMEM,
+    _aligner: BWAMEM | Minimap2,
     _n_threads: int,
     _sl_sequence: Seq | None,
     _sl_length: int,
-    _pa_length: int
+    _pa_length: int,
+    _mismatch_proportion: float | None = None
 ):
-    # This just initialises the parallel worker process with the BWAMEM object
+    # This just initialises the parallel worker process with the aligner object
     # and the number of threads the alignment should use.
-    global bwa, n_threads, sl_sequence, sl_length, pa_length
-    bwa = _bwa
+    global aligner, n_threads, sl_sequence, sl_length, pa_length, mismatch_proportion
+    aligner = _aligner
     n_threads = _n_threads
     sl_sequence = _sl_sequence
     sl_length = _sl_length
     pa_length = _pa_length
+    mismatch_proportion = _mismatch_proportion
 
 
 class ReadFileResults(NamedTuple):
@@ -360,18 +381,18 @@ class ReadFileResults(NamedTuple):
 
 
 def _process_read_file_slidentify(reads: pathlib.Path):
-    global bwa, n_threads
+    global aligner, n_threads
     # This is the main worker function for the parallel processing of
     # alignments - a slimmed down version to only identify the SL
     # sequence.
 
-    # Start thread that calls BWA-MEM and the filtering pipe.
+    # Start thread that calls the aligner and the filtering pipe.
     # Successfully aligned and filtered reads will appear in the `alignments`
     # queue. We need to take care to join the `alignment_thread` when done.
     this_logger = logger.getChild(reads.stem.replace('.fastq', ''))
     this_logger.debug(f'Starting aligner with {n_threads} threads.')
     alignments, alignment_thread = do_alignment(
-        bwa, [reads], bwa_threads=n_threads, this_logger=this_logger)
+        aligner, [reads], bwa_threads=n_threads, this_logger=this_logger)
 
     threads: list[threading.Thread] = [alignment_thread]
 
@@ -389,17 +410,17 @@ def _process_read_file_slidentify(reads: pathlib.Path):
 
 
 def _process_read_file(reads: pathlib.Path):
-    global bwa, n_threads, sl_sequence, sl_length, pa_length
+    global aligner, n_threads, sl_sequence, sl_length, pa_length, mismatch_proportion
     # This is the main worker function for the parallel processing of
     # alignments.
 
-    # Start thread that calls BWA-MEM and the filtering pipe.
+    # Start thread that calls the aligner and the filtering pipe.
     # Successfully aligned and filtered reads will appear in the `alignments`
     # queue. We need to take care to join the `alignment_thread` when done.
     this_logger = logger.getChild(reads.stem.replace('.fastq', ''))
     this_logger.debug(f'Starting aligner with {n_threads} threads.')
     alignments, alignment_thread = do_alignment(
-        bwa, [reads], bwa_threads=n_threads, this_logger=this_logger)
+        aligner, [reads], bwa_threads=n_threads, this_logger=this_logger)
 
     threads: list[threading.Thread] = [alignment_thread]
 

@@ -14,10 +14,14 @@
     sequence = $10
     cigar = $6
     
+    if (sequence == "*") {
+        next
+    }
+
     # Look for alignments that are soft clipped at the start of the alignment
-    if (match(cigar, /^([0-9]+)S([0-9]+)M/, groups_at_start)) {
+    if (match(cigar, /^([0-9]+H)?([0-9]+)S/, groups_at_start)) {
         nr_matched = reference_consumed(cigar)
-        nr_clipped = int(groups_at_start[1])
+        nr_clipped = int(groups_at_start[2])
         if ((nr_matched > 20) && (nr_clipped >= 6)) {  # We want at least 6 soft clipped bases, and 20 aligned bases
             clipped = substr(sequence, 1, nr_clipped)
             remainder = substr(sequence, nr_clipped+1)
@@ -25,9 +29,9 @@
         }
     }
     
-    if (match(cigar, /([0-9]+)M([0-9]+)S$/, groups_at_end)) {
+    if (match(cigar, /([0-9]+)S([0-9]+H)?$/, groups_at_end)) {
         nr_matched = reference_consumed(cigar)
-        nr_clipped = int(groups_at_end[2])
+        nr_clipped = int(groups_at_end[1])
 
         seqlen = length(sequence)
 
