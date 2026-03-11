@@ -69,6 +69,10 @@ For example, if `bwa-mem2` is available on your system `PATH`, by running:
 export BWA_PATH=bwa-mem2
 ```
 
+Default `slapquant` behaviour expects Illumina or other similar low error rate short read sequencing data. However, other data types can be used with the `--data-type` argument:
+* `illumina` (default) for Illumina or other low error rate short read sequencing data. Uses `bwa mem` or `bwa-mem2`.
+* `nanopore` for Nanopore DNA sequencing data. Uses `minimap2` `map-ont` preset. `minimap2` must be installed and available on your `PATH`.
+
 ### slapassign
 
 ```
