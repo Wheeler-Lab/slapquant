@@ -22,6 +22,9 @@ logger = logging.getLogger()
 SL_SEQUENCES = {
     "trypanosomabrucei": "AACGCTATTATTAGAACAGTTTCTGTACTATATT",
     "leishmaniamexicana": "AACTAACGCTATATAAGTATCAGTTTCTGTACTTTATT",
+    "trypanosomacruzi": "ACTAACGCTATTATTGATACAGTTTCTGTACTATATTG",
+    "trypanosoma": "CAGTTTCTGTACTATATTG",
+    "leishmania": "CAGTTTCTGTACTTTATTG",
 }
 SPECIES_HELP = ", ".join([f'"{species}"' for species in SL_SEQUENCES])
 
