@@ -1,6 +1,8 @@
 # slapquant
 
-A simple tool to find spliced leader acceptor and polyadenylation sites in Discoba genomes from RNASeq data.
+A set of Python-based tools for find spliced leader acceptor sites (SLASs) and polyadenylation sites (PASs) in Discoba genomes (including _Leishmania_ and _Trypanosoma_ parasites) from RNASeq data, using those sites to map mRNA untranslated regions (UTRs), correcting coding sequences (CDSs) based on SLAS position, and quantifying sequencing reads which span those sites.
+
+`slapquant` is described in this preprint: [DOI:10.64898/2026.02.24.707742](https://www.biorxiv.org/content/10.64898/2026.02.24.707742v1.full).
 
 ## Installation
 
