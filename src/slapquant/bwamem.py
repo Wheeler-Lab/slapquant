@@ -13,11 +13,17 @@ from ._utils import CandidateAlignment
 
 logger = logging.getLogger('bwamem')
 
-BWA_PATH = os.environ.get('BWA_PATH', 'bwa mem')
+BWA_PATH = os.environ.get('BWA_PATH', 'bwa')
 
 SEQUENCE_RE = re.compile("^[A-Za-z]+$")
 
 ASSETS_PATH = pathlib.Path(__file__).parent / "__assets__/"
+
+
+# Monkey patch threading.excepthook to terminate process on thread error
+def thread_termination_hook(args):
+    os._exit(1)
+threading.excepthook = thread_termination_hook
 
 
 class FASTAValidationError(Exception):
