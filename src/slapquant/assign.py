@@ -408,6 +408,13 @@ def identify_UTRs(
                         f"{mRNA.attributes['ID']} had its CDS both shortened "
                         "and lengthened during UTR assignment.")
 
+            try:
+                mRNA.adjust_coordinates_to_children()
+            except ValueError as error:
+                logger.warning("%s could not be length-adjusted. The Error was '%s'. Requires manual check!", mRNA.attributes["ID"], str(error))
+
+            gene.adjust_coordinates_to_children()
+
             if pas_sites:
                 positions = [
                     pas.start

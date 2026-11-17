@@ -1,6 +1,6 @@
 [project]
 name = "slapquant"
-version = "0.0.1"
+version = "0.0.2"
 description = "Find splice leader acceptor sites and polyadenylation sites from RNASeq reads"
 dependencies = [
     "geffa @ git+https://github.com/ulido/geffa.git",
